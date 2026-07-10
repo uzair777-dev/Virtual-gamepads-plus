@@ -55,7 +55,7 @@
         dist = radius;
       }
       // Move the knob visually
-      knob.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+      knob.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
       // Map to -32768 .. 32767
       var valX = Math.round((dx / radius) * 32767);
       var valY = Math.round((dy / radius) * 32767);
@@ -65,7 +65,7 @@
 
     function release() {
       tracking = null;
-      knob.style.transform = 'translate(-50%, -50%)';
+      knob.style.transform = 'translate(0px, 0px)';
       emit(EV_ABS, absCodeX, 0);
       emit(EV_ABS, absCodeY, 0);
     }
@@ -131,8 +131,13 @@
   // ==============================
   //  BUTTON BINDING
   // ==============================
+  navigator.vibrate = navigator.vibrate || navigator.webkitVibrate || navigator.mozVibrate || navigator.msVibrate;
   function vibrate() {
-    if (navigator.vibrate) navigator.vibrate(50);
+    try {
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    } catch (e) {}
   }
 
   function bindButtons() {
@@ -264,8 +269,21 @@
   // ==============================
   //  DARK MODE
   // ==============================
+  var themes = ['light', 'dark', 'amoled'];
+  var currentTheme = 0;
+  var themeIcons = ['☀️', '🌙', '🌑'];
+
   window.toggleDarkMode = function() {
-    document.body.classList.toggle('xinput-dark');
+    currentTheme = (currentTheme + 1) % themes.length;
+    var btn = document.getElementById('xinput-btn-dark');
+    if (btn) btn.innerText = themeIcons[currentTheme];
+
+    document.body.classList.remove('xinput-dark', 'xinput-amoled');
+    if (themes[currentTheme] === 'dark') {
+      document.body.classList.add('xinput-dark');
+    } else if (themes[currentTheme] === 'amoled') {
+      document.body.classList.add('xinput-amoled');
+    }
   };
 
   // ==============================

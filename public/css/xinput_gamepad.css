@@ -22,7 +22,11 @@ body {
 }
 
 body.xinput-dark {
-  background: #000000;
+  background: #2a2a2a; /* Dark Pastel */
+}
+
+body.xinput-amoled {
+  background: #000000; /* AMOLED Black */
 }
 
 /* ---- Root layout ---- */
@@ -89,8 +93,16 @@ body.xinput-dark {
   align-items: center;
 }
 
-.xinput-col-left, .xinput-col-right {
+.xinput-col-left {
   flex: 1;
+  align-items: flex-start;
+  padding-left: 24px;
+}
+
+.xinput-col-right {
+  flex: 1;
+  align-items: flex-end;
+  padding-right: 24px;
 }
 
 .xinput-col-center {
@@ -108,22 +120,28 @@ body.xinput-dark {
 
 .xinput-stick-bg {
   position: absolute;
-  inset: 0;
+  top: 0; left: 0; right: 0; bottom: 0;
   border-radius: 50%;
-  background: rgba(255,255,255,0.06);
-  border: 2px solid rgba(255,255,255,0.15);
+  background: rgba(0,0,0,0.1);
+  border: 2px solid #ccc;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+
+body.xinput-dark .xinput-stick-bg, body.xinput-amoled .xinput-stick-bg {
+  background: rgba(255,255,255,0.05);
+  border: 2px solid #444;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
 .xinput-stick-knob {
   position: absolute;
-  width: 50px; height: 50px;
   top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
+  width: 60px; height: 60px;
+  margin-top: -30px; margin-left: -30px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #666, #3a3a3a);
-  border: 2px solid #555;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.6);
-  transition: none; /* will be moved by JS */
+  background: radial-gradient(circle at 30% 30%, #eee, #ccc);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+  transition: transform 0.05s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -155,26 +173,34 @@ body.xinput-dark {
 /* ---- D-Pad ---- */
 .xinput-dpad {
   display: grid;
-  grid-template-columns: 36px 36px 36px;
-  grid-template-rows: 36px 36px 36px;
+  grid-template-columns: 42px 42px 42px;
+  grid-template-rows: 42px 42px 42px;
   gap: 2px;
 }
 
 .xinput-dpad-center {
-  background: #2a2a3e;
+  background: #ccc;
   border-radius: 4px;
+}
+body.xinput-dark .xinput-dpad-center, body.xinput-amoled .xinput-dpad-center {
+  background: #2a2a3e;
 }
 
 .xbtn-dpad {
   display: flex;
   align-items: center;
   justify-content: center;
+  background: #ddd;
+  color: #333;
+  border: 1px solid #bbb;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+body.xinput-dark .xbtn-dpad, body.xinput-amoled .xbtn-dpad {
   background: #333350;
   color: rgba(255,255,255,0.7);
   border: 1px solid #444;
-  border-radius: 6px;
-  font-size: 1rem;
-  cursor: pointer;
 }
 
 .xbtn-dpad-u { grid-column: 2; grid-row: 1; }
@@ -208,6 +234,29 @@ body.xinput-dark {
 .xbtn-x { top: 38px; left: 0;   background: linear-gradient(135deg, #74c1fa, #3895e6); }
 .xbtn-b { top: 38px; right: 0;  background: linear-gradient(135deg, #f77a7a, #d44848); }
 
+/* ---- Stick buttons (L3 / R3) ---- */
+.xinput-stick-btn-wrapper {
+  margin-top: -10px;
+}
+
+.xbtn-stick-click {
+  padding: 6px 16px;
+  border-radius: 12px;
+  background: #eaeaea;
+  color: #333;
+  border: 1px solid #ccc;
+  font-size: 0.9rem;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+body.xinput-dark .xbtn-stick-click, body.xinput-amoled .xbtn-stick-click {
+  background: #2a2a2a;
+  color: #aaa;
+  border: 1px solid #444;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+}
+
 /* ---- Bumpers & Triggers ---- */
 .xbtn-bumper, .xbtn-trigger {
   padding: 14px 24px;
@@ -221,7 +270,8 @@ body.xinput-dark {
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-body.xinput-dark .xbtn-bumper, body.xinput-dark .xbtn-trigger {
+body.xinput-dark .xbtn-bumper, body.xinput-dark .xbtn-trigger,
+body.xinput-amoled .xbtn-bumper, body.xinput-amoled .xbtn-trigger {
   background: #333;
   color: #ddd;
   border: 1px solid #555;
@@ -230,23 +280,36 @@ body.xinput-dark .xbtn-bumper, body.xinput-dark .xbtn-trigger {
 
 /* ---- Menu buttons ---- */
 .xbtn-menu {
-  padding: 6px 14px;
+  padding: 8px 16px;
   border-radius: 16px;
+  background: #eaeaea;
+  color: #333;
+  border: 1px solid #ccc;
+  font-size: 0.95rem;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+body.xinput-dark .xbtn-menu, body.xinput-amoled .xbtn-menu {
   background: #333;
   color: #aaa;
   border: 1px solid #555;
-  font-size: 0.85rem;
-  cursor: pointer;
+  box-shadow: none;
 }
 
 .xbtn-guide {
-  width: 36px; height: 36px;
+  width: 44px; height: 44px;
   border-radius: 50%;
-  background: radial-gradient(circle, #4a8a4a, #2a5a2a);
+  background: radial-gradient(circle, #7ad57e, #4ea352);
   color: #fff;
-  border: 2px solid #5a5a5a;
-  font-size: 1rem;
+  border: 2px solid #3d8240;
+  font-size: 1.2rem;
   cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+body.xinput-dark .xbtn-guide, body.xinput-amoled .xbtn-guide {
+  background: radial-gradient(circle, #4a8a4a, #2a5a2a);
+  border: 2px solid #5a5a5a;
   box-shadow: 0 0 8px rgba(74,138,74,0.4);
 }
 
