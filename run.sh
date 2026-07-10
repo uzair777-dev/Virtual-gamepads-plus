@@ -3,6 +3,30 @@
 # Get location of current file
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Check required system dependencies
+MISSING_DEPS=""
+for cmd in node npm ip openssl make g++; do
+	if ! command -v $cmd &>/dev/null; then
+		MISSING_DEPS="$MISSING_DEPS $cmd"
+	fi
+done
+
+if [ -n "$MISSING_DEPS" ]; then
+	echo "Error: The following required system dependencies are missing:$MISSING_DEPS"
+	echo ""
+	echo "You can install them using your package manager:"
+	if command -v dnf &>/dev/null; then
+		echo "  sudo dnf install -y nodejs iproute openssl make gcc-c++"
+	elif command -v apt-get &>/dev/null; then
+		echo "  sudo apt update && sudo apt install -y nodejs npm iproute2 openssl make g++"
+	elif command -v pacman &>/dev/null; then
+		echo "  sudo pacman -S --needed nodejs npm iproute2 openssl make gcc"
+	else
+		echo "  Please install nodejs, npm, iproute, openssl, make, and gcc-c++/g++"
+	fi
+	exit 1
+fi
+
 # Find First Wlan interface
 WLAN_INTERFACE=$(ip addr | grep -oP '^\d+: \K\w+(?=: <BROADCAST,MULTICAST,UP,LOWER_UP>)')
 # Get IP
