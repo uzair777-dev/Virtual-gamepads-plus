@@ -42,6 +42,9 @@ Virtual gamepad application
   touchpad_hub = require('./app/virtual_touchpad_hub');
   tp_hub = new touchpad_hub();
 
+  var xinput_gamepad_hub = require('./app/virtual_xinput_gamepad_hub');
+  var xgp_hub = new xinput_gamepad_hub();
+
   // تنظیم پورت از متغیرهای محیطی یا فایل تنظیمات
   port = process.env.PORT || config.port;
 
@@ -66,11 +69,13 @@ Virtual gamepad application
 
   // مدیریت اتصالات Socket.IO
   io.on('connection', function(socket) {
-    // مدیریت قطع اتصال
     socket.on('disconnect', function() {
       if (socket.gamePadId !== void 0) {
         log('info', ' Gamepad disconnected');
         return gp_hub.disconnectGamepad(socket.gamePadId, function() {});
+      } else if (socket.xinputGamePadId !== void 0) {
+        log('info', ' XInput Gamepad disconnected');
+        return xgp_hub.disconnectGamepad(socket.xinputGamePadId, function() {});
       } else if (socket.keyBoardId !== void 0) {
         log('info', ' Keyboard disconnected');
         return kb_hub.disconnectKeyboard(socket.keyBoardId, function() {});
@@ -105,6 +110,32 @@ Virtual gamepad application
       log('debug', 'padEvent ' + JSON.stringify(data));
       if (socket.gamePadId !== void 0 && data) {
         return gp_hub.sendEvent(socket.gamePadId, data);
+      }
+    });
+
+    // مدیریت اتصال XInput Gamepad
+    socket.on('connectXInputGamepad', function() {
+      return xgp_hub.connectGamepad(function(gamePadId) {
+        var ledBitField;
+        ledBitField = config.ledBitFieldSequence[gamePadId];
+        if (gamePadId !== -1) {
+          log('info', ' connectXInputGamepad: success');
+          socket.xinputGamePadId = gamePadId;
+          return socket.emit('xinputGamepadConnected', {
+            padId: gamePadId,
+            ledBitField: ledBitField
+          });
+        } else {
+          return log('warning', ' connectXInputGamepad: failed');
+        }
+      });
+    });
+
+    // مدیریت رویدادهای XInput Gamepad
+    socket.on('xinputPadEvent', function(data) {
+      log('debug', 'xinputPadEvent ' + JSON.stringify(data));
+      if (socket.xinputGamePadId !== void 0 && data) {
+        return xgp_hub.sendEvent(socket.xinputGamePadId, data);
       }
     });
 

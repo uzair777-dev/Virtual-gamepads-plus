@@ -96,5 +96,12 @@ elif command -v ufw &>/dev/null; then
 	trap cleanup EXIT INT TERM HUP
 fi
 
+DEBUG_ENV=""
+for arg in "$@"; do
+	if [ "$arg" == "--debug" ]; then
+		DEBUG_ENV="LOGLEVEL=debug"
+	fi
+done
+
 # Run virtual gamepad server
-sudo $(which node) $SCRIPT_DIR/main.js
+sudo bash -c "$DEBUG_ENV $(which node) $SCRIPT_DIR/main.js"

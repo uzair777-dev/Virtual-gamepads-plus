@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+<head>
+  <title>Virtual XInput Gamepad</title>
+  <link rel="icon" type="image/png" href="/images/gamepad_icons/favicon_32.png" />
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="stylesheet" type="text/css" href="/css/xinput_gamepad.css" />
+</head>
+<body>
+  <div id="xinput-controller">
+
+    <!-- Slot indicator -->
+    <div id="xinput-slot-indicator">
+      <div id="xinput_ind_1" class="xinput-ind"></div>
+      <div id="xinput_ind_2" class="xinput-ind"></div>
+      <div id="xinput_ind_3" class="xinput-ind"></div>
+      <div id="xinput_ind_4" class="xinput-ind"></div>
+    </div>
+
+    <!-- Top bar: Bumpers, Triggers, Menu buttons -->
+    <div class="xinput-top-bar">
+      <div class="xinput-shoulder-group">
+        <button class="xbtn xbtn-bumper" data-code="0x136" id="xbtn-lb">LB</button>
+        <button class="xbtn xbtn-trigger" data-axis="0x02" data-val="255" id="xbtn-lt">LT</button>
+      </div>
+      <div class="xinput-menu-group">
+        <button class="xbtn xbtn-menu" data-code="0x13a" id="xbtn-back">⊞</button>
+        <button class="xbtn xbtn-guide" data-code="0x13c" id="xbtn-guide">ⓧ</button>
+        <button class="xbtn xbtn-menu" data-code="0x13b" id="xbtn-start">☰</button>
+      </div>
+      <div class="xinput-shoulder-group">
+        <button class="xbtn xbtn-trigger" data-axis="0x05" data-val="255" id="xbtn-rt">RT</button>
+        <button class="xbtn xbtn-bumper" data-code="0x137" id="xbtn-rb">RB</button>
+      </div>
+    </div>
+
+    <!-- Main area: sticks, dpad, face buttons -->
+    <div class="xinput-main">
+
+      <!-- LEFT column -->
+      <div class="xinput-col xinput-col-left">
+        <div id="xinput-left-stick" class="xinput-stick-zone">
+          <div id="xinput-left-stick-bg" class="xinput-stick-bg"></div>
+          <div id="xinput-left-stick-knob" class="xinput-stick-knob"></div>
+        </div>
+        <div class="xinput-stick-btn-wrapper">
+          <button class="xbtn xbtn-stick-click" data-code="0x13d" id="xbtn-l3">L3</button>
+        </div>
+        <div class="xinput-dpad">
+          <button class="xbtn xbtn-dpad xbtn-dpad-u" data-hat-axis="0x11" data-hat-val="-1">▲</button>
+          <button class="xbtn xbtn-dpad xbtn-dpad-l" data-hat-axis="0x10" data-hat-val="-1">◀</button>
+          <div class="xinput-dpad-center"></div>
+          <button class="xbtn xbtn-dpad xbtn-dpad-r" data-hat-axis="0x10" data-hat-val="1">▶</button>
+          <button class="xbtn xbtn-dpad xbtn-dpad-d" data-hat-axis="0x11" data-hat-val="1">▼</button>
+        </div>
+      </div>
+
+      <!-- RIGHT column -->
+      <div class="xinput-col xinput-col-right">
+        <div class="xinput-face-group">
+          <button class="xbtn xbtn-face xbtn-y" data-code="0x134" id="xbtn-y">Y</button>
+          <button class="xbtn xbtn-face xbtn-x" data-code="0x133" id="xbtn-x">X</button>
+          <button class="xbtn xbtn-face xbtn-b" data-code="0x131" id="xbtn-b">B</button>
+          <button class="xbtn xbtn-face xbtn-a" data-code="0x130" id="xbtn-a">A</button>
+        </div>
+        <div id="xinput-right-stick" class="xinput-stick-zone">
+          <div id="xinput-right-stick-bg" class="xinput-stick-bg"></div>
+          <div id="xinput-right-stick-knob" class="xinput-stick-knob"></div>
+        </div>
+        <div class="xinput-stick-btn-wrapper">
+          <button class="xbtn xbtn-stick-click" data-code="0x13e" id="xbtn-r3">R3</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Utility bar -->
+    <div class="xinput-util-bar">
+      <button class="xinput-util-btn" id="xinput-btn-fullscreen" onclick="toggleFullscreen()">⛶</button>
+      <button class="xinput-util-btn" id="xinput-btn-dark" onclick="toggleDarkMode()">🌙</button>
+    </div>
+  </div>
+
+  <script src="/js/lib/socketio.js"></script>
+  <script src="/js/virtual_xinput_gamepad_client.js"></script>
+</body>
+</html>
