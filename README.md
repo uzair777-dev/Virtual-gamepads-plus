@@ -167,5 +167,10 @@ If you want do add a new keyboard layout please refer to [this file](CREATE_KEYB
     - [ ] Some documentation as needed
     - [ ] Add pictures of the new version 
 
+11) Installation:
+    - [ ] Install script that does most of the work
+
+
+
 
 
