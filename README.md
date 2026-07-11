@@ -19,6 +19,12 @@ View [TODO](#todo) for Upcoming stuffs
     cd Virtual-gamepads-revived-again
     ./run.sh
 ```
+
+
+> [!WARNING]
+> The below documentation is old but will be replaced only after I implement all the [stuff](#todo) first.
+
+
 ## ScreenShot:
 (Red L2-R2 Buttons over D-pad only works when gyro enabled)
 ![Standalone installation step 1](https://github.com/uzair777-dev/Virtual-gamepads-revived-again/blob/master/public/images/screenshot.jpg?raw=true)
