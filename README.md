@@ -1,4 +1,4 @@
-# Node-Virtual-Gamepads-Revived ReadMe:
+# Virtual Gamepad Plus
 
 This repo is a fork of [alr86/node-virtual-gamepads-revived](https://github.com/alr86/node-virtual-gamepads-revived) (which is a fork of [node-virtual-gamepads](https://github.com/jehervy/node-virtual-gamepads)) with ~~some~~ Many changes(just tested in linux, and will only ):
 
