@@ -108,3 +108,68 @@ To compile all coffee files when ever they change run
     npx coffee -cw .
 
 If you want do add a new keyboard layout please refer to [this file](CREATE_KEYBOARD_LAYOUT.md).
+
+
+# TODO 
+1) Server-side profile management:
+   
+    [ ] Add a settings page to load/save/edit profiles
+    
+    [ ] Save profiles to file
+    
+    [ ] Auto-load last profile
+    
+2) Better gyro implementation:
+    [ ] Pitch/yaw smoothing
+
+    [ ] Optional reset button
+    
+    [ ] Centering on button press
+
+    
+3) Profile switching:
+    [ ] Quick profile toggle (LB/RB?)
+    [ ] Visual indicator for active profile
+
+
+4) UI/UX improvements:
+    
+    [ ] Touch lock toggle (disable gyro on touch)
+
+    [ ] Button remapping
+
+    [ ] Custom button layouts per profile
+
+
+5) Hardware compatibility:
+
+    [ ] Test on real Android device
+
+    [ ] Test gyro on iOS (if possible)
+
+    [ ] Test L2/R2 triggers on real device
+
+
+6) Performance:
+
+    [ ] Optimize gyro processing
+
+    [ ] Reduce latency
+
+    [ ] Test battery impact
+
+
+7) Advanced features:
+    [ ] Gyro-to-mouse mode
+    
+    [ ] Touchpad mode improvements
+    
+    [ ] Keyboard layouts per profile
+    
+
+8) Documentation:
+   
+    [ ] Some documentation As needed
+
+
+
