@@ -46,6 +46,16 @@ Virtual touchpad hub class
       }
     };
 
+    virtual_touchpad_hub.prototype.getStatus = function() {
+      var used = 0;
+      for (var i = 0; i < this.touchpads.length; i++) {
+        if (this.touchpads[i]) used++;
+      }
+      return {
+        used: used
+      };
+    };
+
     return virtual_touchpad_hub;
 
   })();

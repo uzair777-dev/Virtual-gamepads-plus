@@ -69,21 +69,42 @@ Virtual gamepad application
 
   // مدیریت اتصالات Socket.IO
   io.on('connection', function(socket) {
+    // Initialize arrays for multi-controller tracking per socket
+    socket.gamePadIds = [];
+    socket.xinputGamePadIds = [];
+    socket.keyBoardIds = [];
+    socket.touchpadIds = [];
+
     socket.on('disconnect', function() {
-      if (socket.gamePadId !== void 0) {
-        log('info', ' Gamepad disconnected');
-        return gp_hub.disconnectGamepad(socket.gamePadId, function() {});
-      } else if (socket.xinputGamePadId !== void 0) {
-        log('info', ' XInput Gamepad disconnected');
-        return xgp_hub.disconnectGamepad(socket.xinputGamePadId, function() {});
-      } else if (socket.keyBoardId !== void 0) {
-        log('info', ' Keyboard disconnected');
-        return kb_hub.disconnectKeyboard(socket.keyBoardId, function() {});
-      } else if (socket.touchpadId !== void 0) {
-        log('info', ' Touchpad disconnected');
-        return tp_hub.disconnectTouchpad(socket.touchpadId, function() {});
-      } else {
-        return log('info', ' Unknown disconnect');
+      // Disconnect all gamepads owned by this socket
+      socket.gamePadIds.forEach(function(padId) {
+        log('info', ' Gamepad ' + padId + ' disconnected');
+        gp_hub.disconnectGamepad(padId, function() {});
+      });
+
+      // Disconnect all xinput gamepads owned by this socket
+      socket.xinputGamePadIds.forEach(function(padId) {
+        log('info', ' XInput Gamepad ' + padId + ' disconnected');
+        xgp_hub.disconnectGamepad(padId, function() {});
+      });
+
+      // Disconnect all keyboards owned by this socket
+      socket.keyBoardIds.forEach(function(boardId) {
+        log('info', ' Keyboard ' + boardId + ' disconnected');
+        kb_hub.disconnectKeyboard(boardId, function() {});
+      });
+
+      // Disconnect all touchpads owned by this socket
+      socket.touchpadIds.forEach(function(touchpadId) {
+        log('info', ' Touchpad ' + touchpadId + ' disconnected');
+        tp_hub.disconnectTouchpad(touchpadId, function() {});
+      });
+
+      if (socket.gamePadIds.length === 0 &&
+          socket.xinputGamePadIds.length === 0 &&
+          socket.keyBoardIds.length === 0 &&
+          socket.touchpadIds.length === 0) {
+        log('info', ' Unknown disconnect');
       }
     });
 
@@ -93,23 +114,26 @@ Virtual gamepad application
         var ledBitField;
         ledBitField = config.ledBitFieldSequence[gamePadId];
         if (gamePadId !== -1) {
-          log('info', ' connectGamepad: success');
-          socket.gamePadId = gamePadId;
+          log('info', ' connectGamepad: success (slot ' + gamePadId + ')');
+          socket.gamePadIds.push(gamePadId);
           return socket.emit('gamepadConnected', {
             padId: gamePadId,
             ledBitField: ledBitField
           });
         } else {
-          return log('warning', ' connectGamepad: failed');
+          return log('warning', ' connectGamepad: failed');
         }
       });
     });
 
-    // مدیریت رویدادهای Gamepad
+    // مدیریت رویدادهای Gamepad — routes by padId in data (with backward compat)
     socket.on('padEvent', function(data) {
       log('debug', 'padEvent ' + JSON.stringify(data));
-      if (socket.gamePadId !== void 0 && data) {
-        return gp_hub.sendEvent(socket.gamePadId, data);
+      if (!data) return;
+      // Backward compat: old clients don't send padId, use first connected pad
+      var targetPadId = (data.padId !== undefined) ? data.padId : socket.gamePadIds[0];
+      if (targetPadId !== undefined && socket.gamePadIds.indexOf(targetPadId) !== -1) {
+        return gp_hub.sendEvent(targetPadId, data);
       }
     });
 
@@ -119,23 +143,23 @@ Virtual gamepad application
         var ledBitField;
         ledBitField = config.ledBitFieldSequence[gamePadId];
         if (gamePadId !== -1) {
-          log('info', ' connectXInputGamepad: success');
-          socket.xinputGamePadId = gamePadId;
+          log('info', ' connectXInputGamepad: success (slot ' + gamePadId + ')');
+          socket.xinputGamePadIds.push(gamePadId);
           return socket.emit('xinputGamepadConnected', {
             padId: gamePadId,
             ledBitField: ledBitField
           });
         } else {
-          return log('warning', ' connectXInputGamepad: failed');
+          return log('warning', ' connectXInputGamepad: failed');
         }
       });
     });
 
-    // مدیریت رویدادهای XInput Gamepad
+    // مدیریت رویدادهای XInput Gamepad — now routes by padId in data
     socket.on('xinputPadEvent', function(data) {
       log('debug', 'xinputPadEvent ' + JSON.stringify(data));
-      if (socket.xinputGamePadId !== void 0 && data) {
-        return xgp_hub.sendEvent(socket.xinputGamePadId, data);
+      if (data && data.padId !== undefined && socket.xinputGamePadIds.indexOf(data.padId) !== -1) {
+        return xgp_hub.sendEvent(data.padId, data);
       }
     });
 
@@ -143,22 +167,24 @@ Virtual gamepad application
     socket.on('connectKeyboard', function() {
       return kb_hub.connectKeyboard(function(keyBoardId) {
         if (keyBoardId !== -1) {
-          log('info', ' connectKeyboard: success');
-          socket.keyBoardId = keyBoardId;
+          log('info', ' connectKeyboard: success (slot ' + keyBoardId + ')');
+          socket.keyBoardIds.push(keyBoardId);
           return socket.emit('keyboardConnected', {
             boardId: keyBoardId
           });
         } else {
-          return log('info', ' connectKeyboard: failed');
+          return log('info', ' connectKeyboard: failed');
         }
       });
     });
 
-    // مدیریت رویدادهای Keyboard
+    // مدیریت رویدادهای Keyboard (with backward compat)
     socket.on('boardEvent', function(data) {
       log('debug', 'boardEvent ' + JSON.stringify(data));
-      if (socket.keyBoardId !== void 0 && data) {
-        return kb_hub.sendEvent(socket.keyBoardId, data);
+      if (!data) return;
+      var targetBoardId = (data.boardId !== undefined) ? data.boardId : socket.keyBoardIds[0];
+      if (targetBoardId !== undefined && socket.keyBoardIds.indexOf(targetBoardId) !== -1) {
+        return kb_hub.sendEvent(targetBoardId, data);
       }
     });
 
@@ -166,22 +192,84 @@ Virtual gamepad application
     socket.on('connectTouchpad', function() {
       return tp_hub.connectTouchpad(function(touchpadId) {
         if (touchpadId !== -1) {
-          log('info', ' connectTouchpad: success');
-          socket.touchpadId = touchpadId;
+          log('info', ' connectTouchpad: success (slot ' + touchpadId + ')');
+          socket.touchpadIds.push(touchpadId);
           return socket.emit('touchpadConnected', {
             touchpadId: touchpadId
           });
         } else {
-          return log('info', ' connectTouchpad: failed');
+          return log('info', ' connectTouchpad: failed');
         }
       });
     });
 
-    // مدیریت رویدادهای Touchpad
+    // مدیریت رویدادهای Touchpad (with backward compat)
     socket.on('touchpadEvent', function(data) {
       log('debug', 'touchpadEvent ' + JSON.stringify(data));
-      if (socket.touchpadId !== void 0 && data) {
-        return tp_hub.sendEvent(socket.touchpadId, data);
+      if (!data) return;
+      var targetTouchpadId = (data.touchpadId !== undefined) ? data.touchpadId : socket.touchpadIds[0];
+      if (targetTouchpadId !== undefined && socket.touchpadIds.indexOf(targetTouchpadId) !== -1) {
+        return tp_hub.sendEvent(targetTouchpadId, data);
+      }
+    });
+
+    // Controller status endpoint — returns slot occupancy for all controller types
+    socket.on('getControllerStatus', function() {
+      return socket.emit('controllerStatus', {
+        gamepads: gp_hub.getStatus(),
+        xinputGamepads: xgp_hub.getStatus(),
+        keyboards: kb_hub.getStatus(),
+        touchpads: tp_hub.getStatus()
+      });
+    });
+
+    // Disconnect a specific controller by type and padId
+    socket.on('disconnectController', function(data) {
+      if (!data || data.padId === undefined || !data.type) return;
+      var padId = data.padId;
+      var idx;
+
+      switch (data.type) {
+        case 'gamepad':
+          idx = socket.gamePadIds.indexOf(padId);
+          if (idx !== -1) {
+            socket.gamePadIds.splice(idx, 1);
+            gp_hub.disconnectGamepad(padId, function() {
+              log('info', ' Gamepad ' + padId + ' manually disconnected');
+              socket.emit('controllerDisconnected', { type: 'gamepad', padId: padId });
+            });
+          }
+          break;
+        case 'xinputGamepad':
+          idx = socket.xinputGamePadIds.indexOf(padId);
+          if (idx !== -1) {
+            socket.xinputGamePadIds.splice(idx, 1);
+            xgp_hub.disconnectGamepad(padId, function() {
+              log('info', ' XInput Gamepad ' + padId + ' manually disconnected');
+              socket.emit('controllerDisconnected', { type: 'xinputGamepad', padId: padId });
+            });
+          }
+          break;
+        case 'keyboard':
+          idx = socket.keyBoardIds.indexOf(padId);
+          if (idx !== -1) {
+            socket.keyBoardIds.splice(idx, 1);
+            kb_hub.disconnectKeyboard(padId, function() {
+              log('info', ' Keyboard ' + padId + ' manually disconnected');
+              socket.emit('controllerDisconnected', { type: 'keyboard', padId: padId });
+            });
+          }
+          break;
+        case 'touchpad':
+          idx = socket.touchpadIds.indexOf(padId);
+          if (idx !== -1) {
+            socket.touchpadIds.splice(idx, 1);
+            tp_hub.disconnectTouchpad(padId, function() {
+              log('info', ' Touchpad ' + padId + ' manually disconnected');
+              socket.emit('controllerDisconnected', { type: 'touchpad', padId: padId });
+            });
+          }
+          break;
       }
     });
   });
@@ -191,7 +279,7 @@ Virtual gamepad application
     if (err.hasOwnProperty('errno')) {
       switch (err.errno) {
         case "EACCES":
-          log('error', " You don't have permissions to open port " + port + ". " + "For ports smaller than 1024, you need root privileges.");
+          log('error', " You don't have permissions to open port " + port + ". " + "For ports smaller than 1024, you need root privileges.");
       }
     }
     throw err;

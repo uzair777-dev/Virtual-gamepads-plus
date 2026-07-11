@@ -121,7 +121,7 @@ If you want do add a new keyboard layout please refer to [this file](CREATE_KEYB
 ## TODO 
 
 1) Fixing Stuff First:
-    - [ ] Proper multi device connect 
+    - [x] Proper multi device connect 
     - [ ]  Actual Multithreading 
     - [ ]  Proper Navigation for website
     - [ ]  Remove depreciated stuff

@@ -56,6 +56,64 @@ body.xinput-amoled {
   box-shadow: 0 0 6px #0f0;
 }
 
+/* ---- Player banner ---- */
+.xinput-player-banner {
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 6px 0 2px 0;
+  transition: color 0.3s, text-shadow 0.3s;
+}
+
+.xinput-player-connecting {
+  color: #b08a00;
+  animation: xinput-pulse 1.2s ease-in-out infinite;
+}
+
+.xinput-player-connected {
+  color: #2e7d32;
+  text-shadow: 0 0 8px rgba(46, 125, 50, 0.3);
+}
+
+body.xinput-dark .xinput-player-connected,
+body.xinput-amoled .xinput-player-connected {
+  color: #66bb6a;
+  text-shadow: 0 0 10px rgba(102, 187, 106, 0.4);
+}
+
+body.xinput-dark .xinput-player-connecting,
+body.xinput-amoled .xinput-player-connecting {
+  color: #ffc107;
+}
+
+@keyframes xinput-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ---- Connection status ---- */
+.xinput-connection-status {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding-bottom: 4px;
+  transition: color 0.3s;
+}
+
+.xinput-status-connected {
+  color: #4caf50;
+}
+
+.xinput-status-disconnected {
+  color: #999;
+}
+
+body.xinput-dark .xinput-status-disconnected,
+body.xinput-amoled .xinput-status-disconnected {
+  color: #666;
+}
+
 /* ---- Top bar ---- */
 .xinput-top-bar {
   display: flex;

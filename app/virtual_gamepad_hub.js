@@ -69,6 +69,22 @@ Virtual gamepad hub class
       }
     };
 
+    virtual_gamepad_hub.prototype.getStatus = function() {
+      var slots = [];
+      var used = 0;
+      for (var i = 0; i < num_gamepads; i++) {
+        var occupied = !!this.gamepads[i];
+        slots.push(occupied);
+        if (occupied) used++;
+      }
+      return {
+        slots: slots,
+        total: num_gamepads,
+        used: used,
+        free: num_gamepads - used
+      };
+    };
+
     return virtual_gamepad_hub;
 
   })();

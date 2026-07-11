@@ -1,6 +1,7 @@
 /* ============================================
    XInput Gamepad — Client-side logic
    Self-contained, no VirtualJoystick dependency
+   Supports multiple parallel controllers
    ============================================ */
 (function() {
   'use strict';
@@ -8,6 +9,7 @@
   var socket = io();
   var ledBitField = null;
   var connected = false;
+  var padId = null;  // Our assigned controller slot
 
   // ---- Event constants ----
   var EV_KEY = 0x01;
@@ -21,10 +23,10 @@
   var ABS_HAT0X = 0x10;
   var ABS_HAT0Y = 0x11;
 
-  // ---- Emit helper ----
+  // ---- Emit helper — includes padId for server-side routing ----
   function emit(type, code, value) {
-    if (!connected) return;
-    socket.emit('xinputPadEvent', { type: type, code: code, value: value });
+    if (!connected || padId === null) return;
+    socket.emit('xinputPadEvent', { padId: padId, type: type, code: code, value: value });
   }
 
   // ==============================
@@ -267,6 +269,38 @@
   }
 
   // ==============================
+  //  PLAYER BANNER
+  // ==============================
+  function updatePlayerBanner() {
+    var banner = document.getElementById('xinput-player-banner');
+    if (!banner) return;
+
+    if (connected && padId !== null) {
+      banner.textContent = 'Player ' + (padId + 1);
+      banner.className = 'xinput-player-banner xinput-player-connected';
+    } else {
+      banner.textContent = 'Connecting…';
+      banner.className = 'xinput-player-banner xinput-player-connecting';
+    }
+  }
+
+  // ==============================
+  //  CONNECTION STATUS
+  // ==============================
+  function updateConnectionStatus() {
+    var statusEl = document.getElementById('xinput-connection-status');
+    if (!statusEl) return;
+
+    if (connected) {
+      statusEl.textContent = '● Connected';
+      statusEl.className = 'xinput-connection-status xinput-status-connected';
+    } else {
+      statusEl.textContent = '○ Disconnected';
+      statusEl.className = 'xinput-connection-status xinput-status-disconnected';
+    }
+  }
+
+  // ==============================
   //  DARK MODE
   // ==============================
   var themes = ['light', 'dark', 'amoled'];
@@ -341,11 +375,16 @@
   // ==============================
   window.addEventListener('load', function() {
     updateSlotIndicator();
+    updatePlayerBanner();
+    updateConnectionStatus();
 
     socket.on('xinputGamepadConnected', function(data) {
       connected = true;
+      padId = data.padId;
       ledBitField = data.ledBitField;
       updateSlotIndicator();
+      updatePlayerBanner();
+      updateConnectionStatus();
 
       // Init sticks now that we're connected
       initStick('xinput-left-stick',  'xinput-left-stick-knob',  ABS_X, ABS_Y);
@@ -361,6 +400,9 @@
 
     socket.on('disconnect', function() {
       connected = false;
+      padId = null;
+      updatePlayerBanner();
+      updateConnectionStatus();
       location.reload();
     });
   });

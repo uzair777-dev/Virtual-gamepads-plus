@@ -47,6 +47,16 @@ Virtual keyboard hub class
       }
     };
 
+    virtual_keyboard_hub.prototype.getStatus = function() {
+      var used = 0;
+      for (var i = 0; i < this.keyboards.length; i++) {
+        if (this.keyboards[i]) used++;
+      }
+      return {
+        used: used
+      };
+    };
+
     return virtual_keyboard_hub;
 
   })();
