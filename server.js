@@ -44,6 +44,9 @@ Virtual gamepad application
 
   var xinput_gamepad_hub = require('./app/virtual_xinput_gamepad_hub');
   var xgp_hub = new xinput_gamepad_hub();
+  
+  var xboxone_gamepad_hub = require('./app/virtual_xboxone_hub');
+  var xboxone_hub = new xboxone_gamepad_hub();
 
   // تنظیم پورت از متغیرهای محیطی یا فایل تنظیمات
   port = process.env.PORT || config.port;
@@ -72,6 +75,7 @@ Virtual gamepad application
     // Initialize arrays for multi-controller tracking per socket
     socket.gamePadIds = [];
     socket.xinputGamePadIds = [];
+    socket.xboxOneGamePadIds = [];
     socket.keyBoardIds = [];
     socket.touchpadIds = [];
 
@@ -84,8 +88,15 @@ Virtual gamepad application
 
       // Disconnect all xinput gamepads owned by this socket
       socket.xinputGamePadIds.forEach(function(padId) {
-        log('info', ' XInput Gamepad ' + padId + ' disconnected');
-        xgp_hub.disconnectGamepad(padId, function() {});
+        xgp_hub.disconnectGamepad(padId, function() {
+          log('info', 'Xinput gamepad ' + padId + ' disconnected.');
+        });
+      });
+      // Disconnect all xboxone gamepads owned by this socket
+      socket.xboxOneGamePadIds.forEach(function(padId) {
+        xboxone_hub.disconnectGamepad(padId, function() {
+          log('info', 'Xboxone gamepad ' + padId + ' disconnected.');
+        });
       });
 
       // Disconnect all keyboards owned by this socket
@@ -102,6 +113,7 @@ Virtual gamepad application
 
       if (socket.gamePadIds.length === 0 &&
           socket.xinputGamePadIds.length === 0 &&
+          socket.xboxOneGamePadIds.length === 0 &&
           socket.keyBoardIds.length === 0 &&
           socket.touchpadIds.length === 0) {
         log('info', ' Unknown disconnect');
@@ -159,7 +171,34 @@ Virtual gamepad application
     socket.on('xinputPadEvent', function(data) {
       log('debug', 'xinputPadEvent ' + JSON.stringify(data));
       if (data && data.padId !== undefined && socket.xinputGamePadIds.indexOf(data.padId) !== -1) {
-        return xgp_hub.sendEvent(data.padId, data);
+        xgp_hub.sendEvent(data.padId, data);
+      }
+    });
+
+    socket.on('connectXboxOneGamepad', function() {
+      xboxone_hub.connectGamepad(function(gamePadId) {
+        if (gamePadId !== -1) {
+          socket.xboxOneGamePadIds.push(gamePadId);
+          return socket.emit('xboxOneGamepadConnected', {
+            padId: gamePadId
+          });
+        } else {
+          return socket.emit('xboxOneGamepadConnected', {
+            padId: -1
+          });
+        }
+      }, function(gamePadId, duration) {
+        // Vibrate callback
+        if (socket.xboxOneGamePadIds.indexOf(gamePadId) !== -1) {
+          socket.emit('xboxOneVibrate', { duration: duration });
+        }
+      });
+    });
+
+    socket.on('xboxOnePadEvent', function(data) {
+      log('debug', 'xboxOnePadEvent ' + JSON.stringify(data));
+      if (data && data.padId !== undefined && socket.xboxOneGamePadIds.indexOf(data.padId) !== -1) {
+        xboxone_hub.sendEvent(data.padId, data);
       }
     });
 
@@ -218,6 +257,7 @@ Virtual gamepad application
       return socket.emit('controllerStatus', {
         gamepads: gp_hub.getStatus(),
         xinputGamepads: xgp_hub.getStatus(),
+        xboxOneGamepads: xboxone_hub.getStatus(),
         keyboards: kb_hub.getStatus(),
         touchpads: tp_hub.getStatus()
       });
@@ -245,8 +285,18 @@ Virtual gamepad application
           if (idx !== -1) {
             socket.xinputGamePadIds.splice(idx, 1);
             xgp_hub.disconnectGamepad(padId, function() {
-              log('info', ' XInput Gamepad ' + padId + ' manually disconnected');
+              log('info', 'Xinput gamepad ' + padId + ' manually disconnected');
               socket.emit('controllerDisconnected', { type: 'xinputGamepad', padId: padId });
+            });
+          }
+          break;
+        case 'xboxOneGamepad':
+          idx = socket.xboxOneGamePadIds.indexOf(padId);
+          if (idx !== -1) {
+            socket.xboxOneGamePadIds.splice(idx, 1);
+            xboxone_hub.disconnectGamepad(padId, function() {
+              log('info', 'Xboxone gamepad ' + padId + ' manually disconnected');
+              socket.emit('controllerDisconnected', { type: 'xboxOneGamepad', padId: padId });
             });
           }
           break;

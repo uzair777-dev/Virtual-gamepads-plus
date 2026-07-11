@@ -610,7 +610,11 @@ $(window).load(function () {
 
   var socket = io();
 
-  socket.on("gamepadConnected", function (data) {
+  var isXboxOne = location.href.match(/\?type=xboxone/);
+  var connectEventName = isXboxOne ? "connectXboxOneGamepad" : "connectGamepad";
+  var padEventName = isXboxOne ? "xboxOnePadEvent" : "padEvent";
+
+  var onGamepadConnected = function (data) {
     slotNumber = data.padId;
     ledBitField = data.ledBitField;
 
@@ -619,7 +623,7 @@ $(window).load(function () {
       .on("touchstart", function () {
         var btnId = $(this).data("btn");
         document.getElementById(btnId).classList.add("btnSelected");
-        socket.emit("padEvent", {
+        socket.emit(padEventName, {
           type: 0x01,
           code: $(this).data("code"),
           value: 1,
@@ -629,7 +633,7 @@ $(window).load(function () {
       .on("touchend", function () {
         var btnId = $(this).data("btn");
         document.getElementById(btnId).classList.remove("btnSelected");
-        socket.emit("padEvent", {
+        socket.emit(padEventName, {
           type: 0x01,
           code: $(this).data("code"),
           value: 0,
@@ -641,30 +645,39 @@ $(window).load(function () {
       if (direction.direction != null) {
         direction = direction.direction;
         if (direction.includes("l")) {
-          socket.emit("padEvent", { type: 0x03, code: 0x00, value: 0 });
+          socket.emit(padEventName, { type: 0x03, code: 0x00, value: 0 });
         } else if (direction.includes("r")) {
-          socket.emit("padEvent", { type: 0x03, code: 0x00, value: 255 });
+          socket.emit(padEventName, { type: 0x03, code: 0x00, value: 255 });
         } else {
-          socket.emit("padEvent", { type: 0x03, code: 0x00, value: 127 });
+          socket.emit(padEventName, { type: 0x03, code: 0x00, value: 127 });
         }
         if (direction.includes("u")) {
-          socket.emit("padEvent", { type: 0x03, code: 0x01, value: 0 });
+          socket.emit(padEventName, { type: 0x03, code: 0x01, value: 0 });
         } else if (direction.includes("d")) {
-          socket.emit("padEvent", { type: 0x03, code: 0x01, value: 255 });
+          socket.emit(padEventName, { type: 0x03, code: 0x01, value: 255 });
         } else {
-          socket.emit("padEvent", { type: 0x03, code: 0x01, value: 127 });
+          socket.emit(padEventName, { type: 0x03, code: 0x01, value: 127 });
         }
       } else {
-        socket.emit("padEvent", { type: 0x03, code: 0x00, value: direction.x });
-        socket.emit("padEvent", { type: 0x03, code: 0x01, value: direction.y });
+        socket.emit(padEventName, { type: 0x03, code: 0x00, value: direction.x });
+        socket.emit(padEventName, { type: 0x03, code: 0x01, value: direction.y });
       }
     };
 
     setDirection({ direction: "none" });
+  };
+
+  socket.on("gamepadConnected", onGamepadConnected);
+  socket.on("xboxOneGamepadConnected", onGamepadConnected);
+
+  socket.on("xboxOneVibrate", function(data) {
+    if (navigator.vibrate) {
+      navigator.vibrate(data.duration || 100);
+    }
   });
 
   socket.on("connect", function () {
-    socket.emit("connectGamepad", null);
+    socket.emit(connectEventName, null);
   });
 
   socket.on("disconnect", function () {

@@ -5,24 +5,35 @@
    ============================================ */
 
 /* ---- Responsive sizing variables ----
-   All element sizes are derived from viewport dimensions.
-   vmin = the smaller of vw/vh, so landscape phones use vh,
-   which naturally keeps things from overflowing.
+   All element sizes are derived from container dimensions.
+   cqmin = the smaller of container width/height, 
+   preventing overlap in extreme aspect ratios.
    ---------------------------------------- */
-:root {
-  /* Core sizing unit — scales with the smallest viewport edge */
-  --stick-size:      clamp(80px, 22vmin, 150px);
-  --knob-size:       clamp(36px, 10vmin, 70px);
-  --face-group-size: clamp(80px, 22vmin, 140px);
-  --face-btn-size:   clamp(30px, 8vmin,  52px);
-  --dpad-cell:       clamp(28px, 7vmin,  48px);
-  --shoulder-pad-v:  clamp(8px,  2vmin,  16px);
-  --shoulder-pad-h:  clamp(14px, 4vmin,  28px);
-  --shoulder-font:   clamp(0.75rem, 2vmin, 1.15rem);
-  --menu-pad-v:      clamp(4px,  1.5vmin, 10px);
-  --menu-pad-h:      clamp(10px, 3vmin,   18px);
-  --guide-size:      clamp(32px, 8vmin,  48px);
-  --col-padding:     clamp(8px,  3vw,    28px);
+#xinput-controller {
+  /* Core sizing unit — scales with the smallest container edge */
+  --stick-size:      clamp(80px, 22cqmin, 150px);
+  --knob-size:       clamp(36px, 10cqmin, 70px);
+  --face-group-size: clamp(80px, 22cqmin, 140px);
+  --face-btn-size:   clamp(30px, 8cqmin,  52px);
+  --dpad-cell:       clamp(28px, 7cqmin,  48px);
+  --shoulder-pad-v:  clamp(8px,  2cqmin,  16px);
+  --shoulder-pad-h:  clamp(14px, 4cqmin,  28px);
+  --shoulder-font:   clamp(0.75rem, 2cqmin, 1.15rem);
+  --menu-pad-v:      clamp(4px,  1.5cqmin, 10px);
+  --menu-pad-h:      clamp(10px, 3cqmin,   18px);
+  --guide-size:      clamp(32px, 8cqmin,  48px);
+  --col-padding:     clamp(8px,  3cqw,    28px);
+
+  position: absolute;
+  top: 0; bottom: 0; left: 0; right: 0;
+  margin: auto;
+  width: 100%;
+  height: 100%;
+  max-width: calc(100vh * 2.2);
+  max-height: calc(100vw * 0.65);
+  container-type: size;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Reset & base */
@@ -40,6 +51,7 @@ html, body {
 
 body {
   background: #e6e6e6; /* Xbox 360 Light Gray */
+  display: flex;
 }
 
 body.xinput-dark {
@@ -48,14 +60,6 @@ body.xinput-dark {
 
 body.xinput-amoled {
   background: #000000; /* AMOLED Black */
-}
-
-/* ---- Root layout ---- */
-#xinput-controller {
-  position: absolute;
-  top: 0; bottom: 0; left: 0; right: 0;
-  display: flex;
-  flex-direction: column;
 }
 
 /* ---- Slot indicator ---- */

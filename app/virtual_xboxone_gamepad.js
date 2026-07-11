@@ -4,10 +4,10 @@ var uinput = require('../lib/uinput');
 var uinputStructs = require('../lib/uinput_structs');
 var log = require('../lib/log');
 
-var virtual_xinput_gamepad = (function() {
-  function virtual_xinput_gamepad() {}
+var virtual_xboxone_gamepad = (function() {
+  function virtual_xboxone_gamepad() {}
 
-  virtual_xinput_gamepad.prototype.connect = function(callback, error, retry) {
+  virtual_xboxone_gamepad.prototype.connect = function(callback, error, retry) {
     if (retry == null) {
       retry = 0;
     }
@@ -47,14 +47,19 @@ var virtual_xinput_gamepad = (function() {
           ioctl(_this.fd, uinput.UI_SET_ABSBIT, uinput.ABS_HAT0X);
           ioctl(_this.fd, uinput.UI_SET_ABSBIT, uinput.ABS_HAT0Y);
 
+          // Force Feedback setup
+          ioctl(_this.fd, uinput.UI_SET_EVBIT, uinput.EV_FF);
+          ioctl(_this.fd, uinput.UI_SET_FFBIT, uinput.FF_RUMBLE);
+
           uidev = new uinputStructs.uinput_user_dev;
           uidev_buffer = uidev.ref();
           uidev_buffer.fill(0);
-          uidev.name = Array.from("Microsoft X-Box 360 pad");
+          uidev.name = Array.from("Microsoft X-Box One pad");
           uidev.id.bustype = uinput.BUS_USB;
           uidev.id.vendor = 0x045e;
-          uidev.id.product = 0x028e;
+          uidev.id.product = 0x02ea; // Xbox One Vendor/Product ID
           uidev.id.version = 0x0114;
+          uidev.ff_effects_max = 1;
 
           // Setup left stick ranges
           uidev.absmax[uinput.ABS_X] = 32767;
@@ -103,19 +108,24 @@ var virtual_xinput_gamepad = (function() {
           return fs.write(_this.fd, uidev_buffer, 0, uidev_buffer.length, null, function(err) {
             var error1;
             if (err) {
-              log('error', "Error on init xinput gamepad write:\n" + JSON.stringify(err));
+              log('error', "Error on init xboxone gamepad write:\n" + JSON.stringify(err));
               return error(err);
             } else {
               try {
                 ioctl(_this.fd, uinput.UI_DEV_CREATE);
+                
+                // Start read loop for force feedback
+                _this.readingFF = true;
+                _this.startReading();
+
                 return callback();
               } catch (error1) {
                 err = error1;
-                log('error', "Error on xinput gamepad dev creation:\n" + JSON.stringify(err));
+                log('error', "Error on xboxone gamepad dev creation:\n" + JSON.stringify(err));
                 fs.closeSync(_this.fd);
                 _this.fd = void 0;
                 if (retry < 5) {
-                  log('info', "Retry to create xinput gamepad");
+                  log('info', "Retry to create xboxone gamepad");
                   return _this.connect(callback, error, retry + 1);
                 } else {
                   log('error', "Gave up on creating device");
@@ -129,7 +139,55 @@ var virtual_xinput_gamepad = (function() {
     })(this));
   };
 
-  virtual_xinput_gamepad.prototype.disconnect = function(callback) {
+  virtual_xboxone_gamepad.prototype.startReading = function() {
+    var ev_buffer = Buffer.alloc(24); // sizeof(input_event) on 64-bit
+    var _this = this;
+
+    function readLoop() {
+      if (!_this.fd || !_this.readingFF) return;
+      
+      fs.read(_this.fd, ev_buffer, 0, ev_buffer.length, null, function(err, bytesRead) {
+        if (err || bytesRead !== ev_buffer.length) {
+          if (err && err.code !== 'EAGAIN') {
+            log('error', 'Error reading from uinput: ' + err);
+          }
+          if (_this.readingFF) setTimeout(readLoop, 100);
+          return;
+        }
+
+        var ev = new uinputStructs.input_event(ev_buffer);
+        if (ev.type === 0x0101) { // EV_UINPUT (Linux specific, hardcoded usually as 0x0101)
+          if (ev.code === 200) { // UI_FF_UPLOAD
+            var rumbleDuration = 100;
+            
+            // emit vibrate to the hub
+            if (_this.onVibrate) {
+              _this.onVibrate(rumbleDuration);
+            }
+
+            // Acknowledge the upload to kernel
+            var upload_ack = new uinputStructs.uinput_ff_upload();
+            upload_ack.request_id = ev.value;
+            upload_ack.retval = 0; // Success
+            var ack_buf = upload_ack.ref();
+            try {
+              ioctl(_this.fd, uinput.UI_END_FF_UPLOAD, ack_buf);
+            } catch (e) {
+              log('error', 'Failed to ack UI_FF_UPLOAD: ' + e);
+            }
+          }
+        }
+        
+        if (_this.readingFF) {
+          process.nextTick(readLoop);
+        }
+      });
+    }
+    readLoop();
+  };
+
+  virtual_xboxone_gamepad.prototype.disconnect = function(callback) {
+    this.readingFF = false;
     if (this.fd) {
       ioctl(this.fd, uinput.UI_DEV_DESTROY);
       fs.closeSync(this.fd);
@@ -138,9 +196,16 @@ var virtual_xinput_gamepad = (function() {
     }
   };
 
-  virtual_xinput_gamepad.prototype.sendEvent = function(event, error) {
+  virtual_xboxone_gamepad.prototype.sendEvent = function(event, error) {
     var ev, ev_buffer, ev_end, ev_end_buffer;
     if (this.fd) {
+      // Map web UI 0-255 axis value to -32768 to 32767 for Xbox axes
+      if (event.type === uinput.EV_ABS && (
+          event.code === uinput.ABS_X || event.code === uinput.ABS_Y ||
+          event.code === uinput.ABS_RX || event.code === uinput.ABS_RY)) {
+        event.value = Math.round((event.value - 127) * (32767 / 127));
+      }
+
       ev = new uinputStructs.input_event();
       ev.type = event.type;
       ev.code = event.code;
@@ -172,8 +237,8 @@ var virtual_xinput_gamepad = (function() {
     }
   };
 
-  return virtual_xinput_gamepad;
+  return virtual_xboxone_gamepad;
 
 })();
 
-module.exports = virtual_xinput_gamepad;
+module.exports = virtual_xboxone_gamepad;
