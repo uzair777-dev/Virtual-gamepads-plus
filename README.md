@@ -117,94 +117,57 @@ If you want do add a new keyboard layout please refer to [this file](CREATE_KEYB
    
 
 1) Fixing Stuff First:
-
     - [ ] Proper multi device connect 
-  
     - [ ]  Actual Multithreading 
-
     - [ ]  Proper Navigation for website
-
     - [ ]  Remove depreciated stuff
 
-
 2) Adding Support for wheel:
-
     - [ ] Steering wheel native axis support
-
-    - [ ] Pedals support
-
+    - [ ] Pedals support, with variable pressure sensitivity
     - [ ] Shifter support(Probably)
-
     - [ ] Button mapping
-
     - [ ] Profile support
 
-
-2) Server-side profile management:
-   
+3) Server-side profile management:
     - [ ] Add a settings page to load/save/edit profiles
-    
     - [ ] Save profiles to file, probabaly in ./config/controllerprofiles/ (?)
-    
     - [ ] Auto-load last profile (based on client, idk)
     
-3) Better gyro implementation:
-
+4) Better gyro implementation:
     - [ ] Implement gyro first
-
     - [ ] Pitch/yaw smoothing
-
     - [ ] Optional reset button
-    
     - [ ] Centering on button press
 
-    
-4) Profile switching:
-
+5) Profile switching:
     - [ ] Quick profile toggle (LB/RB?)
-
     - [ ] Visual indicator for active profile
 
-
-4) UI/UX improvements:
-    
+6) UI/UX improvements:
     - [ ] Touch lock toggle (disable gyro on touch)
-
     - [ ] Button remapping
-
     - [ ] Custom button layouts per profile
 
-
-5) Hardware compatibility:
-
+7) Hardware compatibility:
     - [ ] Test on real Android device
-
     - [ ] Test gyro on iOS (if possible)
-
     - [ ] Test L2/R2 triggers on real device
 
-
-6) Performance:
-
+8) Performance:
     - [ ] Optimize gyro processing
-
+    - [ ] Optimise the whole script in general
     - [ ] Reduce latency
-
     - [ ] Test battery impact
 
-
-7) Advanced features:
-    
-    - [ ] Gyro-to-mouse mode
-    
+9) Advanced features:
+    - [ ] Gyro-to-mouse mode(Steam controller type (?) idk)
     - [ ] Touchpad mode improvements
-    
     - [ ] Keyboard layouts per profile
     
-
-8) Documentation:
-   
-    - [ ] Some documentation As needed
+10) Documentation:
+    - [ ] Some documentation as needed
+    - [ ] Add pictures of the new version 
 
 
 
