@@ -27,7 +27,8 @@ View [TODO](#todo) for Upcoming stuffs
 
 ## ScreenShot:
 (Red L2-R2 Buttons over D-pad only works when gyro enabled)
-![Standalone installation step 1](https://github.com/uzair777-dev/Virtual-gamepads-revived-again/blob/master/public/images/screenshot.jpg?raw=true)
+
+![Standalone installation step 1](https://github.com/uzair777-dev/Virtual-gamepads-plus/blob/main/public/images/screenshot.jpg?raw=true)
 ---
 # Node-Virtual-Gamepads ReadMe:
 
@@ -42,7 +43,9 @@ Original Demo video 3 players on EmulStation [here](https://www.youtube.com/watc
 
 Prerequisite
 ------------
-This application is only compatible with Linux OS with the **uinput** kernel module installed.
+This application is only compatible with Linux OSes with the **uinput** kernel module installed, Which most of them do. 
+
+This is only supposed to work in Linux and linux only. It isn't intended for other OSes
 
 If you encounter problems while installing or running node-virtual-gamepads have
 a look at the [troubleshooting](TROUBLESHOOTING.md) page.
@@ -53,8 +56,11 @@ individual values can be found in [README_CONFIG.md](README_CONFIG.md).
 
 Usage
 -----
-Once the nodejs application is launched, you just have to plug your gamepad controller
-by connecting your device on the same local network and by reaching the address *http://node_server_address*
+```bash 
+   
+   ./run.sh # execute inside the directory
+
+```
 
 Features
 --------
@@ -64,26 +70,13 @@ The application will plug automatically a new controller when the web applicatio
 
 ![Virtual gamepad](https://github.com/miroof/node-virtual-gamepads/blob/resources/screenshots/standalone.png?raw=true)
 
-### Use it as standalone application (chrome mobile)
-With the [add to homescreen](https://developer.chrome.com/multidevice/android/installtohomescreen) chrome feature,
-you can easily use virtual gamepads application without launching the browser each time you want to play.
-
-With only 3 clicks, virtual gamepads web application becomes a standalone application.
-
-![Standalone installation step 1](https://github.com/miroof/node-virtual-gamepads/blob/resources/screenshots/standalone_step1.png?raw=true)
-![Standalone installation step 2](https://github.com/miroof/node-virtual-gamepads/blob/resources/screenshots/standalone_step2.png?raw=true)
-
-Then a shortcut is added on your homescreen and the application will be launched outside the browser.
-
-![Virtual gamepad directly from the homescreen](https://github.com/miroof/node-virtual-gamepads/blob/resources/screenshots/standalone_step3.png?raw=true)
-![Launched outside the browser](https://github.com/miroof/node-virtual-gamepads/blob/resources/screenshots/standalone_step4.png?raw=true)
-
 ### Enjoy haptic feedbacks
 Because it's difficult to spot the right place in a touch screen without looking at it,
 the touch zone of each button was increased. LT button was moved at the center of the screen
 to let as much space as possible for the joystick and avoid touch mistakes.
 
-![Step 1](https://github.com/miroof/node-virtual-gamepads/blob/resources/schemas/touch_zones.png?raw=true)
+> [!WARNING]
+> The support in mordern controllers is a bit wonky, and needs to be worked on.
 
 To know if we pressed a button with success, the web application provides an haptic feedback
 which can be easily deactivated by turning off the vibrations of the phone.
@@ -125,55 +118,57 @@ If you want do add a new keyboard layout please refer to [this file](CREATE_KEYB
     - [ ]  Actual Multithreading 
     - [x] Proper Navigation for website
     - [ ] Remove depreciated stuff
-
-2) Adding Support for wheel:
-    - [ ] Steering wheel native axis support
-    - [ ] Pedals support, with variable pressure sensitivity
+2) GUI:
+    - [ ] Implement a proper GUI
+    - [ ] Optimise GUI
+    - [ ] Other gui stuff, idk
+    
+3) Adding Support for wheel:
+    - [x] Steering wheel native axis support
+    - [x] Pedals support, with variable pressure sensitivity
     - [ ] Shifter support(Probably)
-    - [ ] Button mapping
-    - [ ] Profile support
+    - [x] Button mapping
+    - [ ] Profile support(Kind of works, but aint complete)
 
-3) Server-side profile management:
-    - [ ] Add a settings page to load/save/edit profiles
+4) Server-side profile management:
+    - [ ] Add a settings page to load/save/edit profiles(Partially works, but not properly)
     - [ ] Save profiles to file, probabaly in ./config/controllerprofiles/ (?)
     - [ ] Auto-load last profile (based on client, idk)
     
-4) Better gyro implementation:
+5) Better gyro implementation (This is pushed back in the development, will be resumed when other features are completed (or someone else implements it)):
     - [ ] Implement gyro first
     - [ ] Pitch/yaw smoothing
     - [ ] Optional reset button
     - [ ] Centering on button press
 
-5) Profile switching:
+6) Profile switching(Yeah.. not having it):
     - [ ] Quick profile toggle (LB/RB?)
     - [ ] Visual indicator for active profile
 
-6) UI/UX improvements:
+7) UI/UX improvements:
     - [ ] Touch lock toggle (disable gyro on touch)
-    - [ ] Button remapping
-    - [ ] Custom button layouts per profile
+    - [x] Button remapping
+    - [x] Custom button layouts per profile
 
-7) Hardware compatibility:
-    - [ ] Test on real Android device
-    - [ ] Test gyro on iOS (if possible)
-    - [ ] Test L2/R2 triggers on real device
-
-8) Performance:
+8) Hardware compatibility:
+    - [x] Test on real Android device
+    - [ ] Test gyro on iOS (I don't have one)
+9)  Performance:
     - [ ] Optimize gyro processing
     - [ ] Optimise the whole script in general
     - [ ] Reduce latency
     - [ ] Test battery impact
 
-9) Advanced features:
+10) Advanced features:
     - [ ] Gyro-to-mouse mode(Steam controller type (?) idk)
     - [ ] Touchpad mode improvements
     - [ ] Keyboard layouts per profile
     
-10) Documentation:
+11) Documentation:
     - [ ] Some documentation as needed
     - [ ] Add pictures of the new version 
 
-11) Installation:
+12) Installation:
     - [ ] Install script that does most of the work
 
 
