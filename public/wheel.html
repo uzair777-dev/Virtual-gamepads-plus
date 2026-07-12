@@ -21,40 +21,55 @@
       </div>
     </div>
 
-    <!-- Main area: Sliders, Wheel, Side Panels -->
+    <!-- Main area: 4 Zones -->
     <div class="wheel-main">
 
-      <!-- LEFT: Sliders -->
-      <div class="wheel-col wheel-col-sliders">
-        <div class="slider-container" id="slider-throttle" data-axis="0x05">
-          <div class="slider-label">GAS</div>
-          <div class="slider-track"><div class="slider-fill" style="background-color: #4CAF50;"></div></div>
+      <!-- ZONE 1: LEFT -->
+      <div class="wheel-col zone-left">
+        <div class="zone-slot zone-top" id="slot-left-top"></div>
+        <div class="zone-slot zone-mid" id="slot-left-mid">
+          <div class="wheel-col-sliders">
+            <div class="slider-container" id="slider-throttle" data-axis="0x05">
+              <div class="slider-label">GAS</div>
+              <div class="slider-track"><div class="slider-fill" style="background-color: #4CAF50;"></div></div>
+            </div>
+            <div class="slider-container" id="slider-brake" data-axis="0x02">
+              <div class="slider-label">BRK</div>
+              <div class="slider-track"><div class="slider-fill" style="background-color: #F44336;"></div></div>
+            </div>
+            <div class="slider-container" id="slider-clutch" data-axis="0x01" style="display: none;">
+              <div class="slider-label">CLU</div>
+              <div class="slider-track"><div class="slider-fill" style="background-color: #2196F3;"></div></div>
+            </div>
+          </div>
         </div>
-        <div class="slider-container" id="slider-brake" data-axis="0x02">
-          <div class="slider-label">BRK</div>
-          <div class="slider-track"><div class="slider-fill" style="background-color: #F44336;"></div></div>
-        </div>
-        <div class="slider-container" id="slider-clutch" data-axis="0x01" style="display: none;">
-          <div class="slider-label">CLU</div>
-          <div class="slider-track"><div class="slider-fill" style="background-color: #2196F3;"></div></div>
-        </div>
+        <div class="zone-slot zone-bot" id="slot-left-bot"></div>
       </div>
 
-      <!-- CENTER: Wheel and Paddles -->
-      <div class="wheel-col wheel-col-center">
-        <div id="zone-paddle-left" class="paddle-zone paddle-left"></div>
-        <div class="steering-wheel-wrapper">
-          <div id="steering-wheel-knob" class="steering-wheel">
+      <!-- ZONE 2: LEFT MIDDLE -->
+      <div class="wheel-col zone-left-mid">
+        <div class="zone-slot zone-top" id="slot-left-mid-top"><div id="zone-paddle-left" class="paddle-zone paddle-left"></div></div>
+        <div class="zone-slot zone-mid" id="slot-left-mid-mid"></div>
+        <div class="zone-slot zone-bot" id="slot-left-mid-bot"></div>
+      </div>
+
+      <!-- ZONE 3: RIGHT MIDDLE -->
+      <div class="wheel-col zone-right-mid">
+        <div class="zone-slot zone-top" id="slot-right-mid-top"></div>
+        <div class="zone-slot zone-mid" id="slot-right-mid-mid">
+          <div class="steering-wheel-wrapper">
+            <img src="/images/icons/wheel.svg" id="steering-wheel-knob" class="steering-wheel" />
             <div id="zone-wheel-center" class="wheel-center-zone"></div>
           </div>
         </div>
-        <div id="zone-paddle-right" class="paddle-zone paddle-right"></div>
+        <div class="zone-slot zone-bot" id="slot-right-mid-bot"></div>
       </div>
 
-      <!-- RIGHT: Custom buttons -->
-      <div class="wheel-col wheel-col-panels">
-        <div id="zone-left-panel" class="panel-zone left-panel"></div>
-        <div id="zone-right-panel" class="panel-zone right-panel"></div>
+      <!-- ZONE 4: RIGHT -->
+      <div class="wheel-col zone-right">
+        <div class="zone-slot zone-top" id="slot-right-top"><div id="zone-paddle-right" class="paddle-zone paddle-right"></div></div>
+        <div class="zone-slot zone-mid" id="slot-right-mid"></div>
+        <div class="zone-slot zone-bot" id="slot-right-bot"></div>
       </div>
 
     </div>
@@ -102,5 +117,6 @@
 
   <script src="/js/lib/socketio.js"></script>
   <script src="/js/virtual_wheel_client.js"></script>
+  <script src="/js/wakelock.js"></script>
 </body>
 </html>

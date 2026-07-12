@@ -207,8 +207,15 @@
   // --- Dynamic Buttons ---
   function renderButtons(buttons) {
     // Clear zones
-    ['zone-paddle-left', 'zone-paddle-right', 'zone-wheel-center', 'zone-left-panel', 'zone-right-panel'].forEach(id => {
-      document.getElementById(id).innerHTML = '';
+    const zoneIds = [
+      'zone-paddle-left', 'zone-paddle-right', 'zone-wheel-center',
+      'slot-left-top', 'slot-left-bot', 'slot-left-mid-bot',
+      'slot-right-mid-top', 'slot-right-mid-bot',
+      'slot-right-top', 'slot-right-mid', 'slot-right-bot'
+    ];
+    zoneIds.forEach(id => {
+      var el = document.getElementById(id);
+      if (el) el.innerHTML = '';
     });
 
     buttons.forEach(function(btnData) {
@@ -237,7 +244,7 @@
       el.addEventListener('mouseup', release);
       el.addEventListener('mouseleave', release);
 
-      var zoneId = 'zone-' + btnData.position;
+      var zoneId = btnData.position.startsWith('slot-') ? btnData.position : 'zone-' + btnData.position;
       var zone = document.getElementById(zoneId);
       if (zone) zone.appendChild(el);
     });
@@ -317,8 +324,14 @@
           <option value="paddle-left" ${btn.position==='paddle-left'?'selected':''}>Left Paddle</option>
           <option value="paddle-right" ${btn.position==='paddle-right'?'selected':''}>Right Paddle</option>
           <option value="wheel-center" ${btn.position==='wheel-center'?'selected':''}>Wheel Center</option>
-          <option value="left-panel" ${btn.position==='left-panel'?'selected':''}>Left Panel</option>
-          <option value="right-panel" ${btn.position==='right-panel'?'selected':''}>Right Panel</option>
+          <option value="slot-left-top" ${btn.position==='slot-left-top'?'selected':''}>Left (Top)</option>
+          <option value="slot-left-bot" ${btn.position==='slot-left-bot'?'selected':''}>Left (Bottom)</option>
+          <option value="slot-left-mid-bot" ${btn.position==='slot-left-mid-bot'?'selected':''}>Left-Mid (Bottom)</option>
+          <option value="slot-right-mid-top" ${btn.position==='slot-right-mid-top'?'selected':''}>Right-Mid (Top)</option>
+          <option value="slot-right-mid-bot" ${btn.position==='slot-right-mid-bot'?'selected':''}>Right-Mid (Bottom)</option>
+          <option value="slot-right-top" ${btn.position==='slot-right-top'?'selected':''}>Right (Top)</option>
+          <option value="slot-right-mid" ${btn.position==='slot-right-mid'?'selected':''}>Right (Middle)</option>
+          <option value="slot-right-bot" ${btn.position==='slot-right-bot'?'selected':''}>Right (Bottom)</option>
         </select>
         <button onclick="deleteBtn(${idx})">X</button>
       `;
@@ -336,7 +349,8 @@
 
   document.getElementById('btn-add-button').addEventListener('click', function() {
     if(!currentPreset.buttons) currentPreset.buttons = [];
-    currentPreset.buttons.push({ id: 'btn_'+Date.now(), label: 'Btn', code: '0x126', position: 'right-panel' });
+    if(currentPreset.buttons.length >= 6) return alert('Maximum 6 buttons allowed');
+    currentPreset.buttons.push({ id: 'btn_'+Date.now(), label: 'Btn', code: '0x126', position: 'slot-right-top' });
     renderEditorList();
   });
 
