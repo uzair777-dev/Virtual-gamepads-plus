@@ -14,25 +14,25 @@ Virtual gamepad application
   https = require('https');
   fs = require('fs');
 
-  // خواندن تنظیمات و ماژول‌های مورد نیاز
+  // Read settings and required modules
   config = require('./config.json');
   log = require('./lib/log');
 
-  // تنظیمات SSL برای سرور HTTPS
+  // SSL settings for HTTPS server
   var options = {
     key: fs.readFileSync(path.join(__dirname, 'ssl', 'key.pem')),
     cert: fs.readFileSync(path.join(__dirname, 'ssl', 'cert.pem')),
-    // اگر گواهی CA دارید، خط زیر را فعال کنید
+    // If you have a CA certificate, enable the following line
     // ca: fs.readFileSync(path.join(__dirname, 'ssl', 'ca_bundle.crt'))
   };
 
-  // ایجاد سرور HTTPS
+  // Create HTTPS server
   server = https.createServer(options, app);
 
-  // اتصال Socket.IO به سرور HTTPS
+  // Connect Socket.IO to HTTPS server
   io = require('socket.io')(server);
 
-  // بارگذاری ماژول‌های مربوط به کنترل‌ها
+  // Load controller-related modules
   gamepad_hub = require('./app/virtual_gamepad_hub');
   gp_hub = new gamepad_hub();
 
@@ -48,17 +48,17 @@ Virtual gamepad application
   var xboxone_gamepad_hub = require('./app/virtual_xboxone_hub');
   var xboxone_hub = new xboxone_gamepad_hub();
 
-  // تنظیم پورت از متغیرهای محیطی یا فایل تنظیمات
+  // Set port from environment variables or settings file
   port = process.env.PORT || config.port;
 
-  // تعیین پسوند URL بر اساس نوع کنترل
+  // Determine URL suffix based on control type
   if (config.analog) {
     suffix = '?analog';
   } else {
     suffix = '';
   }
 
-  // ریدایرکت به صفحه اصلی
+  // Redirect to main page
   app.get('/', function(req, res) {
     if (config.useGamepadByDefault) {
       return res.redirect('gamepad.html' + suffix);
@@ -67,10 +67,10 @@ Virtual gamepad application
     }
   });
 
-  // سرو کردن فایل‌های استاتیک
+  // Serve static files
   app.use(express["static"](__dirname + '/public'));
 
-  // مدیریت اتصالات Socket.IO
+  // Socket.IO connection management
   io.on('connection', function(socket) {
     // Initialize arrays for multi-controller tracking per socket
     socket.gamePadIds = [];
@@ -120,7 +120,7 @@ Virtual gamepad application
       }
     });
 
-    // مدیریت اتصال Gamepad
+    // Manage Gamepad connection
     socket.on('connectGamepad', function() {
       return gp_hub.connectGamepad(function(gamePadId) {
         var ledBitField;
@@ -138,7 +138,7 @@ Virtual gamepad application
       });
     });
 
-    // مدیریت رویدادهای Gamepad — routes by padId in data (with backward compat)
+    // Manage Gamepad events — routes by padId in data (with backward compat)
     socket.on('padEvent', function(data) {
       log('debug', 'padEvent ' + JSON.stringify(data));
       if (!data) return;
@@ -149,7 +149,7 @@ Virtual gamepad application
       }
     });
 
-    // مدیریت اتصال XInput Gamepad
+    // Manage XInput Gamepad connection
     socket.on('connectXInputGamepad', function() {
       return xgp_hub.connectGamepad(function(gamePadId) {
         var ledBitField;
@@ -167,7 +167,7 @@ Virtual gamepad application
       });
     });
 
-    // مدیریت رویدادهای XInput Gamepad — now routes by padId in data
+    // Manage XInput Gamepad events — now routes by padId in data
     socket.on('xinputPadEvent', function(data) {
       log('debug', 'xinputPadEvent ' + JSON.stringify(data));
       if (data && data.padId !== undefined && socket.xinputGamePadIds.indexOf(data.padId) !== -1) {
@@ -202,7 +202,7 @@ Virtual gamepad application
       }
     });
 
-    // مدیریت اتصال Keyboard
+    // Manage Keyboard connection
     socket.on('connectKeyboard', function() {
       return kb_hub.connectKeyboard(function(keyBoardId) {
         if (keyBoardId !== -1) {
@@ -217,7 +217,7 @@ Virtual gamepad application
       });
     });
 
-    // مدیریت رویدادهای Keyboard (with backward compat)
+    // Manage Keyboard events (with backward compat)
     socket.on('boardEvent', function(data) {
       log('debug', 'boardEvent ' + JSON.stringify(data));
       if (!data) return;
@@ -227,7 +227,7 @@ Virtual gamepad application
       }
     });
 
-    // مدیریت اتصال Touchpad
+    // Manage Touchpad connection
     socket.on('connectTouchpad', function() {
       return tp_hub.connectTouchpad(function(touchpadId) {
         if (touchpadId !== -1) {
@@ -242,7 +242,7 @@ Virtual gamepad application
       });
     });
 
-    // مدیریت رویدادهای Touchpad (with backward compat)
+    // Manage Touchpad events (with backward compat)
     socket.on('touchpadEvent', function(data) {
       log('debug', 'touchpadEvent ' + JSON.stringify(data));
       if (!data) return;
@@ -324,7 +324,7 @@ Virtual gamepad application
     });
   });
 
-  // مدیریت خطاها
+  // Error management
   server.on('error', function(err) {
     if (err.hasOwnProperty('errno')) {
       switch (err.errno) {
@@ -335,7 +335,7 @@ Virtual gamepad application
     throw err;
   });
 
-  // شروع گوش دادن به درخواست‌ها
+  // Start listening to requests
   server.listen(port, function() {
     return log('info', "󰌗 Listening on " + port);
   });
