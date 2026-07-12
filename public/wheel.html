@@ -49,12 +49,7 @@
       <!-- ZONE 2: LEFT MIDDLE -->
       <div class="wheel-col zone-left-mid">
         <div class="zone-slot zone-top" id="slot-left-mid-top"><div id="zone-paddle-left" class="paddle-zone paddle-left"></div></div>
-        <div class="zone-slot zone-mid" id="slot-left-mid-mid">
-          <div class="steering-wheel-wrapper">
-            <img src="/images/icons/wheel.svg" id="steering-wheel-knob" class="steering-wheel" />
-            <div id="zone-wheel-center" class="wheel-center-zone"></div>
-          </div>
-        </div>
+        <div class="zone-slot zone-mid" id="slot-left-mid-mid"></div>
         <div class="zone-slot zone-bot" id="slot-left-mid-bot"></div>
       </div>
 
@@ -69,7 +64,12 @@
       <div class="wheel-col zone-right">
         <div class="zone-slot zone-top" id="slot-right-top"><div id="zone-paddle-right" class="paddle-zone paddle-right"></div></div>
         <div class="zone-slot zone-mid" id="slot-right-mid"></div>
-        <div class="zone-slot zone-bot" id="slot-right-bot"></div>
+        <div class="zone-slot zone-bot" id="slot-right-bot">
+          <div class="steering-wheel-wrapper">
+            <img src="/images/icons/wheel.svg" id="steering-wheel-knob" class="steering-wheel" />
+            <div id="zone-wheel-center" class="wheel-center-zone"></div>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -99,6 +99,13 @@
       <h2>Edit Wheel Settings</h2>
       <label>
         <input type="checkbox" id="edit-clutch-toggle"> Enable Clutch Slider
+      </label>
+      <label>
+        <input type="checkbox" id="edit-lefty-toggle"> Lefty Mode (Mirror Layout)
+      </label>
+      <label>
+        Total Steering Range (e.g. 900 for 450° each way): 
+        <input type="number" id="edit-steering-range" value="180" style="width: 80px;">
       </label>
       
       <div class="editor-buttons-list" id="editor-buttons-list">

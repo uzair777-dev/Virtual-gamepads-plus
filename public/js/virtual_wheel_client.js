@@ -164,8 +164,8 @@
         currentAngle += delta;
         lastTouchAngle = newAngle;
 
-        // Clamp total rotation based on preset (e.g. 900 degrees = -450 to 450)
-        var maxAngle = (currentPreset && currentPreset.steering && currentPreset.steering.range) ? currentPreset.steering.range / 2 : 450;
+        // Clamp total rotation based on preset (default 180 total range, so 90 each way)
+        var maxAngle = (currentPreset && currentPreset.steeringRange) ? currentPreset.steeringRange / 2 : 90;
         currentAngle = Math.max(-maxAngle, Math.min(maxAngle, currentAngle));
 
         wheelKnob.style.transform = 'rotate(' + currentAngle + 'deg)';
@@ -211,7 +211,7 @@
       'zone-paddle-left', 'zone-paddle-right', 'zone-wheel-center',
       'slot-left-top', 'slot-left-bot', 'slot-left-mid-bot',
       'slot-right-mid-top', 'slot-right-mid-bot',
-      'slot-right-top', 'slot-right-mid', 'slot-right-bot'
+      'slot-right-top', 'slot-right-mid'
     ];
     zoneIds.forEach(id => {
       var el = document.getElementById(id);
@@ -283,6 +283,15 @@
         document.getElementById('slider-clutch').style.display = hasClutch ? 'flex' : 'none';
         document.getElementById('edit-clutch-toggle').checked = hasClutch;
         
+        // Lefty mode
+        document.getElementById('edit-lefty-toggle').checked = !!data.leftyMode;
+        var wheelMain = document.querySelector('.wheel-main');
+        if(data.leftyMode) wheelMain.classList.add('lefty-mode');
+        else wheelMain.classList.remove('lefty-mode');
+
+        // Steering range
+        document.getElementById('edit-steering-range').value = data.steeringRange || 180;
+        
         document.getElementById('preset-name').value = name;
       });
   }
@@ -331,7 +340,6 @@
           <option value="slot-right-mid-bot" ${btn.position==='slot-right-mid-bot'?'selected':''}>Right-Mid (Bottom)</option>
           <option value="slot-right-top" ${btn.position==='slot-right-top'?'selected':''}>Right (Top)</option>
           <option value="slot-right-mid" ${btn.position==='slot-right-mid'?'selected':''}>Right (Middle)</option>
-          <option value="slot-right-bot" ${btn.position==='slot-right-bot'?'selected':''}>Right (Bottom)</option>
         </select>
         <button onclick="deleteBtn(${idx})">X</button>
       `;
@@ -367,6 +375,10 @@
     ];
     var c = currentPreset.sliders.find(s=>s.id==='clutch');
     if(c) c.visible = hasClutch;
+
+    // Update new modes
+    currentPreset.leftyMode = document.getElementById('edit-lefty-toggle').checked;
+    currentPreset.steeringRange = parseInt(document.getElementById('edit-steering-range').value) || 180;
 
     fetch('/api/wheel-presets', {
       method: 'POST',

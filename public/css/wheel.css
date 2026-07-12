@@ -78,6 +78,9 @@ body.wheel-dark #preset-select, body.wheel-dark #btn-edit-mode { background: #33
   padding: 10px;
   min-height: 0;
 }
+.wheel-main.lefty-mode {
+  flex-direction: row-reverse;
+}
 
 .wheel-col {
   flex: 1 1 auto;
