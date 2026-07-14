@@ -17,7 +17,7 @@ if [ -z "$gamepads" ]; then
 elif [ "$(echo "$gamepads" | wc -l)" -eq 1 ]; then
 	echo "󰊖 Only one gamepad found, it will be opened."
 	trap 'clear && echo "Interrupted. Exiting..." && exit 1' INT
-	eval jstest "/dev/input/js0"
+	jstest "$gamepads"
 	trap - INT
 	exit
 fi
@@ -50,7 +50,7 @@ function selectGamepad() {
 	if [ -n "$selected" ]; then
 		# Open the selected gamepad device
 		trap 'echo "Interrupted. Back to menu..."' INT
-		eval jstest "/dev/input/js$selected"
+		jstest "/dev/input/js$selected"
 		trap - INT
 		selectGamepad
 	else
@@ -58,5 +58,3 @@ function selectGamepad() {
 	fi
 }
 selectGamepad
-
-echo "$selected"

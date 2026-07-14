@@ -11,6 +11,17 @@ for cmd in node npm ip openssl make g++; do
 	fi
 done
 
+# Check for AppIndicator3 GIR (needed for GUI tray icon)
+if ! python3 -c "import gi; gi.require_version('AppIndicator3', '0.1')" 2>/dev/null; then
+    if command -v apt-get &>/dev/null; then
+        sudo apt-get install -y gir1.2-appindicator3-0.1 2>/dev/null
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y libappindicator-gtk3 2>/dev/null
+    elif command -v pacman &>/dev/null; then
+        sudo pacman -S --needed --noconfirm libappindicator-gtk3 2>/dev/null
+    fi
+fi
+
 if [ -n "$MISSING_DEPS" ]; then
 	echo "Error: The following required system dependencies are missing:$MISSING_DEPS"
 	echo ""
@@ -27,27 +38,42 @@ if [ -n "$MISSING_DEPS" ]; then
 	exit 1
 fi
 
-# Find First Wlan interface
-WLAN_INTERFACE=$(ip addr | grep -oP '^\d+: \K\w+(?=: <BROADCAST,MULTICAST,UP,LOWER_UP>)')
-# Get IP
-IP_ADDRESSES=$(ip addr show dev "$WLAN_INTERFACE" | grep -Po 'inet \K[\d.]+' | tr '\n' ' ')
-IP_ADDRESS=$(cut -d" " -f1 <<< $IP_ADDRESSES)
+GUI_MODE=""
+if [ "$1" == "--gui" ]; then
+    GUI_MODE="1"
+fi
 
-clear
+# Get IP via default route — works on WiFi, Ethernet, VPN, etc.
+IP_ADDRESS=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[\d.]+')
+
+# Fallback: scan all UP interfaces
+if [ -z "$IP_ADDRESS" ]; then
+    IP_ADDRESS=$(ip -4 addr show scope global up | grep -oP 'inet \K[\d.]+' | head -1)
+fi
+
+if [ -z "$GUI_MODE" ]; then
+    clear
+fi
 
 # Auto-check and fix npm dependencies for future-proofing
-echo "Checking npm dependencies..."
+if [ -z "$GUI_MODE" ]; then
+    echo "Checking npm dependencies..."
+fi
 cd "$SCRIPT_DIR"
-# npm ls returns an error code if dependencies are missing or mismatched
-if ! npm ls >/dev/null 2>&1; then
-	echo "Missing or broken dependencies detected. Installing/fixing automatically..."
-	# Remove node_modules and package-lock to avoid frozen broken states
-	rm -rf package-lock.json node_modules
+
+if [ ! -d "node_modules" ] || ! npm ls >/dev/null 2>&1; then
+    if [ -z "$GUI_MODE" ]; then
+	    echo "Missing or broken dependencies detected. Installing/fixing automatically..."
+    fi
 	npm install
 fi
 
 # IP exist or not
 if [ -z "$IP_ADDRESS" ]; then
+    if [ -n "$GUI_MODE" ]; then
+        echo "GUI_ERROR=no_ip"
+        exit 1
+    fi
 	echo "IP address is not detected!"
 	read -p "Please enter the IP address or just press Enter to exit: " IP_ADDRESS
 	if [ -z "$IP_ADDRESS" ]; then
@@ -55,49 +81,59 @@ if [ -z "$IP_ADDRESS" ]; then
 	fi
 fi
 
+mkdir -p "$SCRIPT_DIR/ssl"
 # Generate SSL certificate if is not exist for https connection
 if [ ! -f "$SCRIPT_DIR/ssl/key.pem" ] || [ ! -f "$SCRIPT_DIR/ssl/cert.pem" ]; then
-	echo "Generating SSL certificates..."
-	openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 123456 -nodes \
-		-subj "/C=US/ST=State/L=Locality/O=Organization/CN=localhost"
-	echo "SSL generated successfully."
+    if [ -z "$GUI_MODE" ]; then
+	    echo "Generating SSL certificates..."
+    fi
+	openssl req -x509 -newkey rsa:4096 -keyout "$SCRIPT_DIR/ssl/key.pem" -out "$SCRIPT_DIR/ssl/cert.pem" -days 123456 -nodes \
+		-subj "/C=US/ST=State/L=Locality/O=Organization/CN=localhost" 2>/dev/null
+    if [ -z "$GUI_MODE" ]; then
+	    echo "SSL generated successfully."
+    fi
 fi
 
 # Ensure presets directory exists and has correct permissions
 mkdir -p "$SCRIPT_DIR/presets/wheel"
-chmod -R 777 "$SCRIPT_DIR/presets"
+chmod -R 755 "$SCRIPT_DIR/presets"
 
-# Show server qr-code
-if command -v qrencode &>/dev/null; then
-	qrencode -t ansiutf8 "https://$IP_ADDRESS:80"
-elif command -v qr &>/dev/null; then
-	qr "https://$IP_ADDRESS:80"
+PORT=$(node -e "console.log(require('./config.json').port)" 2>/dev/null || echo "80")
+
+if [ -n "$GUI_MODE" ]; then
+    echo "GUI_IP=$IP_ADDRESS"
+    echo "GUI_PORT=$PORT"
+    echo "GUI_STATUS=starting"
 else
-	echo "Both \"QREncode\" and \"QR\" packages is not installed, QRCode can not be showen"
-	echo "Open [https://$IP_ADDRESS:80] in your browser to connect to the server."
+    echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
+    echo "Open https://$IP_ADDRESS:$PORT in your phone's browser"
+    echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
 fi
-echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
-echo "IP Address: ${IP_ADDRESSES}"
-echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
 
 cleanup() {
-	trap - EXIT INT TERM
-	echo "Closing port 80..."
+	trap - EXIT INT TERM HUP
+    if [ -z "$GUI_MODE" ]; then
+	    echo "Closing port $PORT..."
+    fi
 	if command -v firewall-cmd &>/dev/null; then
-		sudo firewall-cmd --remove-port=80/tcp > /dev/null
+		sudo firewall-cmd --remove-port=$PORT/tcp > /dev/null
 	elif command -v ufw &>/dev/null; then
-		sudo ufw delete allow 80/tcp > /dev/null
+		sudo ufw delete allow $PORT/tcp > /dev/null
 	fi
 }
 
+trap cleanup EXIT INT TERM HUP
+
 if command -v firewall-cmd &>/dev/null; then
-	echo "Temporarily opening port 80 in firewalld..."
-	sudo firewall-cmd --add-port=80/tcp > /dev/null
-	trap cleanup EXIT INT TERM HUP
+    if [ -z "$GUI_MODE" ]; then
+	    echo "Temporarily opening port $PORT in firewalld..."
+    fi
+	sudo firewall-cmd --add-port=$PORT/tcp > /dev/null
 elif command -v ufw &>/dev/null; then
-	echo "Temporarily opening port 80 in ufw..."
-	sudo ufw allow 80/tcp > /dev/null
-	trap cleanup EXIT INT TERM HUP
+    if [ -z "$GUI_MODE" ]; then
+	    echo "Temporarily opening port $PORT in ufw..."
+    fi
+	sudo ufw allow $PORT/tcp > /dev/null
 fi
 
 HOT_RELOAD_ENV=""
@@ -109,6 +145,10 @@ for arg in "$@"; do
 		HOT_RELOAD_ENV="HOT_RELOAD=1"
 	fi
 done
+
+if [ -n "$GUI_MODE" ]; then
+    echo "GUI_STATUS=running"
+fi
 
 # Run virtual gamepad server
 sudo bash -c "$HOT_RELOAD_ENV $DEBUG_ENV $(which node) $SCRIPT_DIR/main.js"
