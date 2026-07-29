@@ -1,13 +1,15 @@
 {
-  "port": 8443,
-  "useGamepadByDefault": false,
-  "analog": true,
-  "logLevel": "info",
-  "ledBitFieldSequence": [1,2,4,8,9,10,12,13,14,15],
-  "maxGamepads": 4,
-  "maxXinputGamepads": 4,
-  "maxXboxOneGamepads": 4,
-  "maxWheels": 4,
-  "maxKeyboards": 4,
-  "maxTouchpads": 4
+ "port": 8443,
+ "useGamepadByDefault": false,
+ "analog": true,
+ "logLevel": "info",
+ "ledBitFieldSequence": [1,2,4,8,9,10,12,13,14,15],
+ "maxGamepads": 4,
+ "maxXinputGamepads": 4,
+ "maxXboxOneGamepads": 4,
+ "maxWheels": 4,
+ "maxKeyboards": 4,
+ "maxTouchpads": 4,
+ "fallbackPorts": [8080, 8000, 3000, 8081],
+ "maxPortTries": 5
 }

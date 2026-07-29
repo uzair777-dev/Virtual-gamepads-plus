@@ -24,7 +24,8 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
-  width: 100%; height: 100%;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   touch-action: none;
   -webkit-touch-callout: none;
@@ -32,10 +33,22 @@ html, body {
   user-select: none;
   font-family: 'Segoe UI', Arial, sans-serif;
   background: #e6e6e6;
+  color: #000;
 }
 
 body.wheel-dark { background: #282828; color: #eee; }
-body.wheel-amoled { background: #000; color: #fff; }
+body.wheel-amoled {
+ background: #000;
+ color: #fff;
+}
+
+/* SVG Wheel Color Change for Themes */
+body.wheel-dark .steering-wheel {
+ filter: brightness(0.8) invert(1) hue-rotate(180deg);
+}
+body.wheel-amoled .steering-wheel {
+ filter: brightness(0.6) invert(1) hue-rotate(180deg) saturate(0.5);
+}
 
 /* Top Bar */
 .top-bar {
@@ -59,6 +72,7 @@ body.wheel-amoled { background: #000; color: #fff; }
 .top-bar-controls {
   display: flex;
   gap: 10px;
+  align-items: center;
 }
 
 #preset-select, #btn-edit-mode {
@@ -69,6 +83,53 @@ body.wheel-amoled { background: #000; color: #fff; }
   cursor: pointer;
 }
 body.wheel-dark #preset-select, body.wheel-dark #btn-edit-mode { background: #333; color: #fff; border-color: #555; }
+body.wheel-amoled #preset-select, body.wheel-amoled #btn-edit-mode { background: #111; color: #fff; border-color: #333; }
+
+/* Theme Toggle */
+.theme-toggle {
+  display: flex;
+  gap: 5px;
+  margin-left: 10px;
+}
+
+.theme-btn {
+  padding: 3px 8px;
+  font-size: 0.8rem;
+  background: #f9f9f9;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.theme-btn:hover { background: rgba(0,0,0,0.1); }
+.theme-btn.active {
+  background: #00bc8c;
+  color: #fff;
+  border-color: #00bc8c;
+}
+
+body.wheel-dark .theme-btn {
+  background: #333;
+  color: #fff;
+  border-color: #555;
+}
+body.wheel-dark .theme-btn:hover { background: rgba(255,255,255,0.1); }
+body.wheel-dark .theme-btn.active {
+  background: #00d4a0;
+  color: #fff;
+}
+
+body.wheel-amoled .theme-btn {
+  background: #111;
+  color: #fff;
+  border-color: #333;
+}
+body.wheel-amoled .theme-btn:hover { background: rgba(255,255,255,0.05); }
+body.wheel-amoled .theme-btn.active {
+  background: #00ffaa;
+  color: #000;
+}
 
 /* Main Area */
 .wheel-main {
@@ -135,7 +196,6 @@ body.wheel-dark #preset-select, body.wheel-dark #btn-edit-mode { background: #33
   bottom: 0;
   left: 0;
   width: 100%;
-  height: 0%;
   transition: height 0.05s linear;
 }
 
@@ -155,8 +215,8 @@ body.wheel-dark #preset-select, body.wheel-dark #btn-edit-mode { background: #33
   touch-action: none;
 }
 
-
 .wheel-center-zone {
+  position: relative;
   width: 50%;
   height: 50%;
   display: flex;
@@ -205,7 +265,9 @@ body.wheel-dark #preset-select, body.wheel-dark #btn-edit-mode { background: #33
   cursor: pointer;
   user-select: none;
 }
+
 body.wheel-dark .wheel-btn { background: #333; color: #fff; border-color: #555; }
+body.wheel-amoled .wheel-btn { background: #111; color: #fff; border-color: #333; }
 
 .wheel-btn.pressed {
   transform: scale(0.9);
@@ -241,7 +303,9 @@ body.wheel-dark .wheel-btn { background: #333; color: #fff; border-color: #555; 
   font-size: 1rem;
   cursor: pointer;
 }
+
 body.wheel-dark .wheel-util-btn { color: #fff; background: rgba(255,255,255,0.1); }
+body.wheel-amoled .wheel-util-btn { color: #fff; background: rgba(255,255,255,0.05); }
 
 /* Modals */
 .modal-overlay {
@@ -261,7 +325,9 @@ body.wheel-dark .wheel-util-btn { color: #fff; background: rgba(255,255,255,0.1)
   text-align: center;
   min-width: 300px;
 }
+
 body.wheel-dark .modal-content { background: #222; color: #fff; }
+body.wheel-amoled .modal-content { background: #050505; color: #fff; }
 
 .editor-content {
   max-width: 500px;
@@ -325,11 +391,12 @@ body.wheel-dark .modal-content { background: #222; color: #fff; }
 }
 
 .camera-knob {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 40%;
-  height: 40%;
+ display: block;
+ position: absolute;
+ top: 50%;
+ left: 50%;
+ width: 40%;
+ height: 40%;
   max-width: 60px;
   max-height: 60px;
   min-width: 30px;
@@ -367,6 +434,11 @@ body.wheel-dark .camera-knob {
     inset 0 2px 4px rgba(255,255,255,0.1);
 }
 
-.lefty-mode .camera-knob {
-  /* Visual only; logic handles mirroring */
+body.wheel-amoled .camera-knob {
+  background: radial-gradient(circle at 30% 30%, #00ffaa 0%, #00aa77 100%);
+  border-color: rgba(255,255,255,0.1);
+  box-shadow: 
+    0 2px 4px rgba(0,0,0,0.7),
+    inset 0 -2px 4px rgba(0,0,0,0.4),
+    inset 0 2px 4px rgba(255,255,255,0.05);
 }

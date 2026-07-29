@@ -12,36 +12,68 @@ var virtual_wheel_hub = (function() {
     }
   }
 
-  virtual_wheel_hub.prototype.connectWheel = function(callback) {
-    var freeSlot = false;
-    var padId = 0;
-    while (!freeSlot && padId < num_gamepads) {
-      if (!this.gamepads[padId]) {
-        freeSlot = true;
-      } else {
-        padId++;
-      }
-    }
-    if (!freeSlot) {
-      log('warning', "Couldn't add new virtual wheel: no slot left.");
-      return callback(-1);
-    } else {
-      log('info', 'Creating and connecting to virtual wheel number ' + padId);
-      this.gamepads[padId] = new virtual_wheel();
-      
-      return this.gamepads[padId].connect((function(_this) {
-        return function() {
-          return callback(padId);
-        };
-      })(this), (function(_this) {
-        return function(err) {
-          _this.gamepads[padId] = void 0;
-          log('error', "Couldn't connect to virtual wheel:\n" + JSON.stringify(err));
-          return callback(-1);
-        };
-      })(this));
-    }
-  };
+virtual_wheel_hub.prototype.connectWheel = function(callback) {
+ var freeSlot = false;
+ var padId = 0;
+ while (!freeSlot && padId < num_gamepads) {
+ if (!this.gamepads[padId]) {
+ freeSlot = true;
+ } else {
+ padId++;
+ }
+ }
+ if (!freeSlot) {
+ log('warning', "Couldn't add new virtual wheel: no slot left.");
+ return callback(-1);
+ } else {
+ log('info', 'Creating and connecting to virtual wheel number ' + padId);
+ this.gamepads[padId] = new virtual_wheel();
+
+ return this.gamepads[padId].connect((function(_this) {
+ return function() {
+ return callback(padId);
+ };
+ })(this), (function(_this) {
+ return function(err) {
+ _this.gamepads[padId] = void 0;
+ log('error', "Couldn't connect to virtual wheel:\n" + JSON.stringify(err));
+ return callback(-1);
+ };
+ })(this));
+ }
+};
+
+virtual_wheel_hub.prototype.connectWheelNoClutch = function(callback) {
+ var freeSlot = false;
+ var padId = 0;
+ while (!freeSlot && padId < num_gamepads) {
+ if (!this.gamepads[padId]) {
+ freeSlot = true;
+ } else {
+ padId++;
+ }
+ }
+ if (!freeSlot) {
+ log('warning', "Couldn't add new virtual wheel (no clutch): no slot left.");
+ return callback(-1);
+ } else {
+ log('info', 'Creating and connecting to virtual wheel (no clutch) number ' + padId);
+ var virtual_wheel_no_clutch = require('./virtual_wheel_no_clutch');
+ this.gamepads[padId] = new virtual_wheel_no_clutch();
+
+ return this.gamepads[padId].connect((function(_this) {
+ return function() {
+ return callback(padId);
+ };
+ })(this), (function(_this) {
+ return function(err) {
+ _this.gamepads[padId] = void 0;
+ log('error', "Couldn't connect to virtual wheel (no clutch):\n" + JSON.stringify(err));
+ return callback(-1);
+ };
+ })(this));
+ }
+};
 
   virtual_wheel_hub.prototype.disconnectWheel = function(padId, callback) {
     if (this.gamepads[padId]) {

@@ -75,15 +75,18 @@ Virtual gamepad application
   var virtual_wheel_hub = require('./app/virtual_wheel_hub');
   var wh_hub = new virtual_wheel_hub();
 
-  // Set port from environment variables or settings file
-  port = process.env.PORT || config.port;
+// Port configuration - try primary first, then fallbacks
+var primaryPort = process.env.PORT || config.port;
+var fallbackPorts = config.fallbackPorts || [8080, 8000, 3000, 8081];
+var allPorts = [primaryPort].concat(fallbackPorts);
+var maxTries = config.maxPortTries || 5;
 
-  // Determine URL suffix based on control type
-  if (config.analog) {
-    suffix = '?analog';
-  } else {
-    suffix = '';
-  }
+// Determine URL suffix based on control type
+if (config.analog) {
+ suffix = '?analog';
+} else {
+ suffix = '';
+}
 
   // Redirect to main page
   app.get('/', function(req, res) {
@@ -278,22 +281,33 @@ Virtual gamepad application
       }
     });
 
-    // Manage Wheel connection
-    socket.on('connectWheel', function() {
-      return wh_hub.connectWheel(function(gamePadId) {
-        var ledBitField = config.ledBitFieldSequence[gamePadId];
-        if (gamePadId !== -1) {
-          log('info', ' connectWheel: success (slot ' + gamePadId + ')');
-          socket.wheelIds.push(gamePadId);
-          return socket.emit('wheelConnected', {
-            padId: gamePadId,
-            ledBitField: ledBitField
-          });
-        } else {
-          return log('warning', ' connectWheel: failed');
-        }
-      });
-    });
+// Manage Wheel connection
+socket.on('connectWheel', function() {
+ return wh_hub.connectWheel(function(gamePadId) {
+ var ledBitField = config.ledBitFieldSequence[gamePadId];
+ if (gamePadId !== -1) {
+ log('info', ' connectWheel: success (slot ' + gamePadId + ')');
+ socket.wheelIds.push(gamePadId);
+ return socket.emit('wheelConnected', { padId: gamePadId, ledBitField: ledBitField, hasClutch: true });
+ } else {
+ return log('warning', ' connectWheel: failed');
+ }
+});
+});
+
+// Manage Wheel (No Clutch) connection
+socket.on('connectWheelNoClutch', function() {
+ return wh_hub.connectWheelNoClutch(function(gamePadId) {
+ var ledBitField = config.ledBitFieldSequence[gamePadId];
+ if (gamePadId !== -1) {
+ log('info', ' connectWheelNoClutch: success (slot ' + gamePadId + ')');
+ socket.wheelIds.push(gamePadId);
+ return socket.emit('wheelConnected', { padId: gamePadId, ledBitField: ledBitField, hasClutch: false });
+ } else {
+ return log('warning', ' connectWheelNoClutch: failed');
+ }
+ });
+});
 
     // Manage Wheel events
     socket.on('wheelEvent', function(data) {
@@ -436,20 +450,34 @@ Virtual gamepad application
     });
   });
 
-  // Error management
-  server.on('error', function(err) {
-    if (err.hasOwnProperty('errno')) {
-      switch (err.errno) {
-        case "EACCES":
-          log('error', " You don't have permissions to open port " + port + ". " + "For ports smaller than 1024, you need root privileges.");
-      }
-    }
-    throw err;
-  });
+// Try ports sequentially with fallback support
+var tryPort = function(ports, index) {
+ if (index >= ports.length || index >= maxTries) {
+ log('error', 'No available ports found after ' + maxTries + ' attempts');
+ process.exit(1);
+ }
+ var attemptPort = ports[index];
+ var tempServer = https.createServer(options, app);
+ tempServer.on('error', function(err) {
+ if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
+ log('info', 'Port ' + attemptPort + ' unavailable, trying next...');
+ tempServer.close();
+ tryPort(ports, index + 1);
+ } else {
+ log('error', 'Server error on port ' + attemptPort + ': ' + err.message);
+ tempServer.close();
+ tryPort(ports, index + 1);
+ }
+ });
+ tempServer.on('listening', function() {
+ server = tempServer;
+ port = attemptPort;
+ log('info', '󰌗 Listening on ' + port);
+ });
+ tempServer.listen(attemptPort, '0.0.0.0');
+};
 
-  // Start listening to requests
-  server.listen(port, function() {
-    return log('info', "󰌗 Listening on " + port);
-  });
+// Start trying ports
+tryPort(allPorts, 0);
 
 }).call(this);

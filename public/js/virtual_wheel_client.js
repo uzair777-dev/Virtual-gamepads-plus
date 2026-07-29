@@ -1,9 +1,13 @@
 (function() {
-  'use strict';
+ 'use strict';
 
-  var socket = io();
-  var connected = false;
-  var padId = null;
+ var socket = io();
+ var connected = false;
+ var padId = null;
+
+// Theme cycling state
+window.themeIndex = 0;
+window.themes = ['light', 'dark', 'amoled'];
 
   // Input event types
   var EV_KEY = 0x01;
@@ -54,8 +58,34 @@
     document.body.classList.toggle('wheel-dark');
   };
 
+  window.toggleAmoledMode = function() {
+    document.body.classList.toggle('wheel-amoled');
+  };
+
   // Prevent context menu
   window.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+
+  // Theme toggle functionality
+  document.addEventListener('DOMContentLoaded', function() {
+    var themeToggle = document.querySelector('.theme-toggle');
+    if (themeToggle) {
+      themeToggle.addEventListener('click', function(e) {
+        if (e.target.classList.contains('theme-btn')) {
+          var theme = e.target.getAttribute('data-theme');
+          var allButtons = themeToggle.querySelectorAll('.theme-btn');
+          allButtons.forEach(function(btn) {
+            btn.classList.remove('active');
+          });
+          e.target.classList.add('active');
+          
+          document.body.classList.remove('wheel-dark', 'wheel-amoled');
+          if (theme !== 'light') {
+            document.body.classList.add('wheel-' + theme);
+          }
+        }
+      });
+    }
+  });
 
   // --- Fullscreen Popup ---
   var fsPopup = document.getElementById('fullscreen-popup');
@@ -538,10 +568,31 @@
     location.reload();
   });
 
-  // Initialize camera joystick after DOM ready
-  initCameraJoystick();
+// Theme cycling function
+window.cycleTheme = function() {
+ window.themeIndex = (window.themeIndex + 1) % window.themes.length;
+ var theme = window.themes[window.themeIndex];
 
-  // Init
-  loadPresetsList();
+ // Remove all theme classes
+ document.body.className = document.body.className.replace(/\bwheel-(light|dark|amoled)\b/g, '');
+
+ // Add new theme class (skip 'light' as it's default)
+ if (theme !== 'light') {
+ document.body.classList.add('wheel-' + theme);
+ }
+
+ // Update button emoji for visual feedback
+ var btn = document.getElementById('btn-theme');
+ var emojis = ['🟢', '🌙', '⚫'];
+ if (btn) {
+ btn.textContent = emojis[window.themeIndex];
+ }
+};
+
+// Initialize camera joystick after DOM ready
+initCameraJoystick();
+
+// Init
+loadPresetsList();
 
 })();

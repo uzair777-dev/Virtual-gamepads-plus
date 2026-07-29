@@ -1,0 +1,124 @@
+<!doctype html>
+<html>
+<head>
+<title>Virtual Racing Wheel (No Clutch)</title>
+<link rel="icon" type="image/png" href="/images/gamepad_icons/favicon_32.png" />
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport" />
+<meta name="mobile-web-app-capable" content="yes" />
+<link rel="stylesheet" type="text/css" href="/css/wheel.css" />
+</head>
+<body>
+<div id="wheel-controller">
+
+<div class="top-bar">
+<div id="wheel-player-banner" class="wheel-player-banner wheel-player-connecting">Connecting…</div>
+<div id="wheel-connection-status" class="wheel-connection-status wheel-status-disconnected">○ Disconnected</div>
+<div class="top-bar-controls">
+<select id="preset-select">
+<option value="default">Default Racing</option>
+</select>
+<button id="btn-edit-mode">⚙️ Edit</button>
+</div>
+</div>
+
+<!-- Main area: 4 Zones -->
+<div class="wheel-main">
+
+<!-- ZONE 1: LEFT -->
+<div class="wheel-col zone-left">
+<div class="zone-slot zone-top" id="slot-left-top"></div>
+<div class="zone-slot zone-mid" id="slot-left-mid">
+<div class="wheel-col-sliders">
+<div class="slider-container" id="slider-throttle" data-axis="0x01">
+<div class="slider-label">GAS</div>
+<div class="slider-track"><div class="slider-fill" style="background-color: #4CAF50;"></div></div>
+</div>
+<div class="slider-container" id="slider-brake" data-axis="0x02">
+<div class="slider-label">BRK</div>
+<div class="slider-track"><div class="slider-fill" style="background-color: #F44336;"></div></div>
+</div>
+</div>
+</div>
+<div class="zone-slot zone-bot" id="slot-left-bot"></div>
+</div>
+
+<!-- ZONE 2: LEFT MIDDLE -->
+<div class="wheel-col zone-left-mid">
+<div class="zone-slot zone-top" id="slot-left-mid-top"><div id="zone-paddle-left" class="paddle-zone paddle-left"></div></div>
+<div class="zone-slot zone-mid" id="slot-left-mid-mid"></div>
+<div class="zone-slot zone-bot" id="slot-left-mid-bot"></div>
+</div>
+
+<!-- ZONE 3: RIGHT MIDDLE -->
+<div class="wheel-col zone-right-mid">
+<div class="zone-slot zone-top" id="slot-right-mid-top"></div>
+<div class="zone-slot zone-mid" id="slot-right-mid-mid"></div>
+<div class="zone-slot zone-bot" id="slot-right-mid-bot"></div>
+</div>
+
+<!-- ZONE 4: RIGHT -->
+<div class="wheel-col zone-right">
+<div class="zone-slot zone-top" id="slot-right-top"><div id="zone-paddle-right" class="paddle-zone paddle-right"></div></div>
+<div class="zone-slot zone-mid" id="slot-right-mid"></div>
+<div class="zone-slot zone-bot" id="slot-right-bot">
+<div class="steering-wheel-wrapper">
+<img src="/images/icons/wheel.svg" id="steering-wheel-knob" class="steering-wheel" />
+<div id="zone-wheel-center" class="wheel-center-zone"></div>
+</div>
+</div>
+</div>
+
+</div>
+
+</div>
+
+<!-- Utility bar -->
+<div class="wheel-util-bar">
+<button class="wheel-util-btn" onclick="window.location.href='/'">
+ <img src="images/icons/back.svg" style="width: 24px; height: 24px;" />
+</button>
+<button class="wheel-util-btn" id="btn-fullscreen" onclick="toggleFullscreen()">⛶</button>
+<button class="wheel-util-btn" id="btn-theme" onclick="cycleTheme()" title="Cycle theme">🌓</button>
+</div>
+</div>
+
+<!-- Fullscreen Recommendation Popup -->
+<div id="fullscreen-popup" class="modal-overlay">
+<div class="modal-content">
+<p>For best use case, Use full screen</p>
+<button id="btn-fullscreen-yes">Enter Full Screen</button>
+<button id="btn-fullscreen-no">Dismiss</button>
+</div>
+</div>
+
+<!-- Editor Modal -->
+<div id="editor-modal" class="modal-overlay" style="display:none;">
+<div class="modal-content editor-content">
+<h2>Edit Wheel Settings</h2>
+<label>
+<input type="checkbox" id="edit-lefty-toggle"> Lefty Mode (Mirror Layout)
+</label>
+<label>
+Total Steering Range (e.g. 900 for 450° each way):
+<input type="number" id="edit-steering-range" value="180" style="width: 80px;">
+</label>
+
+<div class="editor-buttons-list" id="editor-buttons-list">
+<!-- Buttons injected here -->
+</div>
+
+<button id="btn-add-button">+ Add Button</button>
+<hr>
+<div class="editor-actions">
+<input type="text" id="preset-name" placeholder="Preset Name">
+<button id="btn-save-preset">Save Preset</button>
+<button id="btn-close-editor">Close</button>
+</div>
+</div>
+</div>
+
+<script src="/js/lib/socketio.js"></script>
+<script src="/js/virtual_wheel_no_clutch_client.js"></script>
+<script src="/js/wakelock.js"></script>
+</body>
+</html>
