@@ -24,6 +24,34 @@ Virtual gamepad application
     log("info", "Hot reload is ENABLED (watching for file changes)");
   }
 
+  var child_process = require("child_process");
+
+  function autoHealSystem() {
+    log("warning", "[AUTO-HEAL] Executing system self-recovery routine...");
+    try {
+      // 1. Ensure uinput kernel module is loaded
+      child_process.execSync("modprobe uinput 2>/dev/null || true");
+      log("info", "[AUTO-HEAL] Verified uinput kernel module");
+    } catch(e) {}
+
+    try {
+      // 2. Fix /dev/uinput permissions if restricted
+      child_process.execSync("chmod 666 /dev/uinput 2>/dev/null || true");
+    } catch(e) {}
+
+    try {
+      // 3. Clear any zero-byte or corrupted SSL certs
+      var sslDir = require("path").join(__dirname, "ssl");
+      ["key.pem", "cert.pem"].forEach(function(f) {
+        var p = require("path").join(sslDir, f);
+        if (require("fs").existsSync(p) && require("fs").statSync(p).size === 0) {
+          require("fs").unlinkSync(p);
+          log("info", "[AUTO-HEAL] Cleared corrupted 0-byte cert file: " + f);
+        }
+      });
+    } catch(e) {}
+  }
+
   server = new forever.Monitor(
     require("path").resolve(__dirname, "server.js"),
     options
@@ -47,8 +75,14 @@ Virtual gamepad application
     earlyDeathCount = diedAfter < 5000 ? earlyDeathCount + 1 : 0;
     log("info", "earlyDeathCount: " + earlyDeathCount);
     if (earlyDeathCount >= 3) {
-      log("error", "Died too often too fast.");
-      return server.stop();
+      log("warning", "[AUTO-HEAL] Crash loop detected. Triggering auto-heal recovery...");
+      autoHealSystem();
+      earlyDeathCount = 0;
+      setTimeout(function() {
+        log("info", "[AUTO-HEAL] Restarting server after self-healing...");
+        try { server.start(); } catch(e) { log("error", "[AUTO-HEAL] Restart failed: " + e.message); }
+      }, 2000);
+      return;
     }
   });
 

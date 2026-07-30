@@ -446,9 +446,15 @@ socket.on('connectWheelNoClutch', function() {
 
     // Manage Wheel events
     socket.on('wheelEvent', function(data) {
-      log('debug', 'wheelEvent ' + JSON.stringify(data));
-      if (data && data.padId !== undefined && socket.wheelIds.indexOf(data.padId) !== -1) {
-        wh_hub.sendEvent(data.padId, data);  // Passthrough ALL events
+      if (data && typeof data === 'object') {
+        log('debug', 'wheelEvent ' + JSON.stringify(data));
+        if (data.padId !== undefined && socket.wheelIds.indexOf(data.padId) !== -1) {
+          try {
+            wh_hub.sendEvent(data.padId, data);
+          } catch(err) {
+            log('warning', '[SAFEGUARD] Error sending wheel event: ' + err.message);
+          }
+        }
       }
     });
 

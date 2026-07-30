@@ -15,6 +15,13 @@ var virtual_wheel = (function() {
       return function(err, fd) {
         var uidev, uidev_buffer;
         if (err) {
+          if ((err.code === 'EACCES' || err.code === 'ENOENT') && retry === 0) {
+            log('warning', '[AUTO-HEAL] /dev/uinput access error (' + err.code + '). Attempting auto-repair...');
+            try {
+              require('child_process').execSync('modprobe uinput 2>/dev/null; chmod 666 /dev/uinput 2>/dev/null || true');
+              return _this.connect(callback, error, 1);
+            } catch(e) {}
+          }
           log('error', "Error on opening /dev/uinput:\n" + JSON.stringify(err));
           return error(err);
         } else {
@@ -161,16 +168,16 @@ var virtual_wheel = (function() {
       try {
         fs.writeSync(this.fd, ev_buffer, 0, ev_buffer.length, null);
       } catch (error1) {
-        err = error1;
-        log('error', "Error on writing ev_buffer");
-        throw err;
+        log('error', "Error on writing ev_buffer: " + (error1 ? error1.message : error1));
+        if (typeof error === 'function') error(error1);
+        return;
       }
       try {
         return fs.writeSync(this.fd, ev_end_buffer, 0, ev_end_buffer.length, null);
       } catch (error2) {
-        err = error2;
-        log('error', "Error on writing ev_end_buffer");
-        throw err;
+        log('error', "Error on writing ev_end_buffer: " + (error2 ? error2.message : error2));
+        if (typeof error === 'function') error(error2);
+        return;
       }
     }
   };

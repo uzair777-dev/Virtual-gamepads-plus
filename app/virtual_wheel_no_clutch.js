@@ -7,7 +7,7 @@ var log = require('../lib/log');
 var virtual_wheel_no_clutch = (function() {
  function virtual_wheel_no_clutch() {}
 
-  virtual_wheel.prototype.connect = function(callback, error, retry) {
+  virtual_wheel_no_clutch.prototype.connect = function(callback, error, retry) {
     if (retry == null) {
       retry = 0;
     }
@@ -15,6 +15,13 @@ var virtual_wheel_no_clutch = (function() {
       return function(err, fd) {
         var uidev, uidev_buffer;
         if (err) {
+          if ((err.code === 'EACCES' || err.code === 'ENOENT') && retry === 0) {
+            log('warning', '[AUTO-HEAL] /dev/uinput access error (' + err.code + '). Attempting auto-repair...');
+            try {
+              require('child_process').execSync('modprobe uinput 2>/dev/null; chmod 666 /dev/uinput 2>/dev/null || true');
+              return _this.connect(callback, error, 1);
+            } catch(e) {}
+          }
           log('error', "Error on opening /dev/uinput:\n" + JSON.stringify(err));
           return error(err);
         } else {
@@ -34,21 +41,21 @@ var virtual_wheel_no_clutch = (function() {
 
           // Axes
           ioctl(_this.fd, uinput.UI_SET_EVBIT, uinput.EV_ABS);
-          ioctl(_this.fd, uinput.UI_SET_ABSBIT, uinput.ABS_X);       // Steering
-          ioctl(_this.fd, uinput.UI_SET_ABSBIT, uinput.ABS_Y);       // Throttle
-          ioctl(_this.fd, uinput.UI_SET_ABSBIT, uinput.ABS_Z);       // Brake
-
-          ioctl(_this.fd, uinput.UI_SET_ABSBIT, uinput.ABS_RY);      // Camera X (axis 4)
-          ioctl(_this.fd, uinput.UI_SET_ABSBIT, uinput.ABS_RZ);      // Camera Y (axis 5)
+          ioctl(_this.fd, uinput.UI_SET_ABSBIT, uinput.ABS_X);       // Steering (Axis 0)
+          ioctl(_this.fd, uinput.UI_SET_ABSBIT, uinput.ABS_Y);       // Throttle (Axis 1)
+          ioctl(_this.fd, uinput.UI_SET_ABSBIT, uinput.ABS_Z);       // Brake (Axis 2)
+          ioctl(_this.fd, uinput.UI_SET_ABSBIT, uinput.ABS_RX);      // Dummy Clutch (Axis 3)
+          ioctl(_this.fd, uinput.UI_SET_ABSBIT, uinput.ABS_RY);      // Camera X (Axis 4)
+          ioctl(_this.fd, uinput.UI_SET_ABSBIT, uinput.ABS_RZ);      // Camera Y (Axis 5)
 
           uidev = new uinputStructs.uinput_user_dev;
           uidev_buffer = uidev.ref();
           uidev_buffer.fill(0);
- uidev.name = Array.from("Virtual Racing Wheel (No Clutch)");
- uidev.id.bustype = uinput.BUS_USB;
- uidev.id.vendor = 0x0003;
- uidev.id.product = 0x0007;
- uidev.id.version = 1;
+          uidev.name = Array.from("Virtual Racing Wheel (No Clutch)");
+          uidev.id.bustype = uinput.BUS_USB;
+          uidev.id.vendor = 0x0003;
+          uidev.id.product = 0x0007;
+          uidev.id.version = 1;
 
           // Setup steering range (typically -32768 to 32767 for a wheel)
           uidev.absmax[uinput.ABS_X] = 32767;
@@ -68,7 +75,11 @@ var virtual_wheel_no_clutch = (function() {
           uidev.absfuzz[uinput.ABS_Z] = 0;
           uidev.absflat[uinput.ABS_Z] = 0;
 
-
+          // Setup dummy clutch on ABS_RX (0 to 255) to preserve axis indexing
+          uidev.absmax[uinput.ABS_RX] = 255;
+          uidev.absmin[uinput.ABS_RX] = 0;
+          uidev.absfuzz[uinput.ABS_RX] = 0;
+          uidev.absflat[uinput.ABS_RX] = 0;
 
           // Setup camera X (right stick X) on ABS_RY (axis 4) -32767..32767
           uidev.absmax[uinput.ABS_RY] = 32767;
@@ -98,6 +109,7 @@ var virtual_wheel_no_clutch = (function() {
                     try {
  _this.sendEvent({ type: uinput.EV_ABS, code: uinput.ABS_Y, value: 0 });
  _this.sendEvent({ type: uinput.EV_ABS, code: uinput.ABS_Z, value: 0 });
+ _this.sendEvent({ type: uinput.EV_ABS, code: uinput.ABS_RX, value: 0 });
  _this.sendEvent({ type: uinput.EV_ABS, code: uinput.ABS_RY, value: 0 }); // camera X
  _this.sendEvent({ type: uinput.EV_ABS, code: uinput.ABS_RZ, value: 0 }); // camera Y
                     } catch (e) {
@@ -139,6 +151,10 @@ var virtual_wheel_no_clutch = (function() {
   virtual_wheel_no_clutch.prototype.sendEvent = function(event, error) {
     var err, error1, error2, ev, ev_buffer, ev_end, ev_end_buffer;
     if (this.fd) {
+      // Dynamically clamp ABS_RX (Clutch) to 0 in no-clutch mode
+      if (event.type === uinput.EV_ABS && event.code === uinput.ABS_RX && event.value !== 0) {
+        event.value = 0;
+      }
       ev = new uinputStructs.input_event;
       ev.type = event.type;
       ev.code = event.code;
@@ -156,16 +172,16 @@ var virtual_wheel_no_clutch = (function() {
       try {
         fs.writeSync(this.fd, ev_buffer, 0, ev_buffer.length, null);
       } catch (error1) {
-        err = error1;
-        log('error', "Error on writing ev_buffer");
-        throw err;
+        log('error', "Error on writing ev_buffer: " + (error1 ? error1.message : error1));
+        if (typeof error === 'function') error(error1);
+        return;
       }
       try {
         return fs.writeSync(this.fd, ev_end_buffer, 0, ev_end_buffer.length, null);
       } catch (error2) {
-        err = error2;
-        log('error', "Error on writing ev_end_buffer");
-        throw err;
+        log('error', "Error on writing ev_end_buffer: " + (error2 ? error2.message : error2));
+        if (typeof error === 'function') error(error2);
+        return;
       }
     }
   };

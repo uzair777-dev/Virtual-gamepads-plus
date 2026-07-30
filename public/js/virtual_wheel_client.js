@@ -236,38 +236,63 @@ window.themes = ['light', 'dark', 'amoled'];
     }
   });
 
-  // --- Camera Joystick (Wheel Center Zone) ---
+  // --- Camera Joystick (positionable module) ---
   var camJoyActiveId = null;
   var camJoyKnobEl = null;
   var camJoyRadius = 0;
   var camJoyCenterX = 0;
   var camJoyCenterY = 0;
+  var camJoyZone = null;
 
-  function initCameraJoystick() {
-    var zone = document.getElementById('zone-wheel-center');
+  // Clean up previous camera joystick listeners
+  var camJoyListeners = [];
+  function removeCamJoyListeners() {
+    camJoyListeners.forEach(function(l) {
+      l.target.removeEventListener(l.event, l.fn, l.opts);
+    });
+    camJoyListeners = [];
+    camJoyActiveId = null;
+    camJoyKnobEl = null;
+    camJoyZone = null;
+  }
+
+  function createCameraJoystick(zone) {
     if (!zone) return;
+    removeCamJoyListeners();
+    camJoyZone = zone;
 
-    // Create visual knob element
+    zone.classList.add('camera-joystick-zone');
+
     camJoyKnobEl = document.createElement('div');
     camJoyKnobEl.className = 'camera-knob';
     zone.appendChild(camJoyKnobEl);
 
-    // Calculate radius and center
+    var label = document.createElement('div');
+    label.className = 'camera-joystick-label';
+    label.textContent = '📷';
+    zone.appendChild(label);
+
     var updateGeometry = function() {
       var rect = zone.getBoundingClientRect();
       camJoyCenterX = rect.width / 2;
       camJoyCenterY = rect.height / 2;
-      camJoyRadius = Math.min(rect.width, rect.height) / 2 * 0.75; // 75% of half-size
+      camJoyRadius = Math.min(rect.width, rect.height) / 2 * 0.75;
     };
     updateGeometry();
-    window.addEventListener('resize', updateGeometry);
-    window.addEventListener('orientationchange', updateGeometry);
 
-    zone.addEventListener('touchstart', function(e) {
+    function addListener(target, event, fn, opts) {
+      target.addEventListener(event, fn, opts);
+      camJoyListeners.push({ target: target, event: event, fn: fn, opts: opts });
+    }
+
+    addListener(window, 'resize', updateGeometry);
+    addListener(window, 'orientationchange', updateGeometry);
+
+    addListener(zone, 'touchstart', function(e) {
       if (camJoyActiveId !== null) return;
       var t = e.changedTouches[0];
       camJoyActiveId = t.identifier;
-      camJoyKnobEl.classList.add('active');
+      if (camJoyKnobEl) camJoyKnobEl.classList.add('active');
       updateGeometry();
       var dx = t.clientX - zone.getBoundingClientRect().left - camJoyCenterX;
       var dy = t.clientY - zone.getBoundingClientRect().top - camJoyCenterY;
@@ -275,31 +300,27 @@ window.themes = ['light', 'dark', 'amoled'];
       e.preventDefault();
     }, { passive: false });
 
-    window.addEventListener('touchmove', function(e) {
+    addListener(window, 'touchmove', function(e) {
       if (camJoyActiveId === null) return;
       for (var i = 0; i < e.changedTouches.length; i++) {
         if (e.changedTouches[i].identifier === camJoyActiveId) {
           var rect = zone.getBoundingClientRect();
           var dx = e.changedTouches[i].clientX - rect.left - camJoyCenterX;
           var dy = e.changedTouches[i].clientY - rect.top - camJoyCenterY;
-          
-          // Normalize to -1..1
+
           var nx = Math.max(-1, Math.min(1, dx / camJoyRadius));
           var ny = Math.max(-1, Math.min(1, dy / camJoyRadius));
-          
-          // Deadzone 15%
+
           if (Math.abs(nx) < 0.15) nx = 0;
           if (Math.abs(ny) < 0.15) ny = 0;
 
-          // Lefty mode: mirror horizontal
           var wheelMain = document.querySelector('.wheel-main');
           if (wheelMain && wheelMain.classList.contains('lefty-mode')) {
             nx = -nx;
           }
 
-          // Emit as gamepad right stick (-32767..32767)
-          emit(EV_ABS, ABS_RX, Math.round(nx * 32767));
-          emit(EV_ABS, ABS_RY, Math.round(-ny * 32767)); // Y up = negative
+          emit(EV_ABS, ABS_RY, Math.round(nx * 32767));
+          emit(EV_ABS, ABS_RZ, Math.round(-ny * 32767));
 
           updateKnobPosition(dx, dy);
           e.preventDefault();
@@ -311,15 +332,15 @@ window.themes = ['light', 'dark', 'amoled'];
     function releaseCamJoy() {
       if (camJoyActiveId === null) return;
       camJoyActiveId = null;
-      camJoyKnobEl.classList.remove('active');
-      // Return to center visually
-      camJoyKnobEl.style.transform = 'translate(-50%, -50%)';
-      // Emit center
-      emit(EV_ABS, ABS_RX, 0);
+      if (camJoyKnobEl) {
+        camJoyKnobEl.classList.remove('active');
+        camJoyKnobEl.style.transform = 'translate(-50%, -50%)';
+      }
       emit(EV_ABS, ABS_RY, 0);
+      emit(EV_ABS, ABS_RZ, 0);
     }
 
-    window.addEventListener('touchend', function(e) {
+    addListener(window, 'touchend', function(e) {
       for (var i = 0; i < e.changedTouches.length; i++) {
         if (e.changedTouches[i].identifier === camJoyActiveId) {
           releaseCamJoy();
@@ -328,7 +349,7 @@ window.themes = ['light', 'dark', 'amoled'];
       }
     });
 
-    window.addEventListener('touchcancel', function(e) {
+    addListener(window, 'touchcancel', function(e) {
       for (var i = 0; i < e.changedTouches.length; i++) {
         if (e.changedTouches[i].identifier === camJoyActiveId) {
           releaseCamJoy();
@@ -339,34 +360,50 @@ window.themes = ['light', 'dark', 'amoled'];
   }
 
   function updateKnobPosition(dx, dy) {
-    if (!camJoyKnobEl) return;
-    // Clamp to circle
+    if (!camJoyKnobEl || !camJoyZone) return;
     var dist = Math.sqrt(dx * dx + dy * dy);
     if (dist > camJoyRadius) {
       dx = dx / dist * camJoyRadius;
       dy = dy / dist * camJoyRadius;
     }
-    var zone = document.getElementById('zone-wheel-center');
-    if (!zone) return;
-    var centerX = zone.offsetWidth / 2;
-    var centerY = zone.offsetHeight / 2;
-    // camera-knob is 40% of zone, so center is at 50% - 20% = 30% offset
-    // transform: translate(-50%, -50%) centers it, then we add dx, dy
-    camJoyKnobEl.style.transform = 'translate(' + (centerX + dx - camJoyKnobEl.offsetWidth/2) + 'px, ' + (centerY + dy - camJoyKnobEl.offsetHeight/2) + 'px)';
+    camJoyKnobEl.style.transform = 'translate(calc(-50% + ' + Math.round(dx) + 'px), calc(-50% + ' + Math.round(dy) + 'px))';
   }
 
-  // --- Dynamic Buttons ---
-  function renderButtons(buttons) {
+  // --- Dynamic Buttons & Modules ---
+  function renderButtons(buttons, modules) {
     const zoneIds = [
       'zone-paddle-left', 'zone-paddle-right', 'zone-wheel-center',
-      'slot-left-top', 'slot-left-bot', 'slot-left-mid-bot',
-      'slot-right-mid-top', 'slot-right-mid-bot',
+      'slot-left-top', 'slot-left-bot',
+      'slot-left-mid-top', 'slot-left-mid-mid', 'slot-left-mid-bot',
+      'slot-right-mid-top', 'slot-right-mid-mid', 'slot-right-mid-bot',
       'slot-right-top', 'slot-right-mid'
     ];
+    removeCamJoyListeners();
     zoneIds.forEach(id => {
       var el = document.getElementById(id);
-      if (el) el.innerHTML = '';
+      if (el) {
+        el.innerHTML = '';
+        el.classList.remove('camera-joystick-zone');
+      }
     });
+
+    var camJoyPlaced = false;
+    if (modules && modules.length) {
+      modules.forEach(function(mod) {
+        if (mod.type === 'camera-joystick') {
+          var zoneId = mod.position.startsWith('slot-') ? mod.position : 'zone-' + mod.position;
+          var zone = document.getElementById(zoneId);
+          if (zone) {
+            createCameraJoystick(zone);
+            camJoyPlaced = true;
+          }
+        }
+      });
+    }
+    if (!camJoyPlaced) {
+      var defaultZone = document.getElementById('zone-wheel-center');
+      if (defaultZone) createCameraJoystick(defaultZone);
+    }
 
     buttons.forEach(function(btnData) {
       var el = document.createElement('div');
@@ -426,7 +463,7 @@ window.themes = ['light', 'dark', 'amoled'];
       .then(r => r.json())
       .then(data => {
         currentPreset = data;
-        renderButtons(data.buttons || []);
+        renderButtons(data.buttons || [], data.modules || []);
         
         var hasClutch = data.sliders && data.sliders.some(s => s.id === 'clutch' && s.visible);
         document.getElementById('slider-clutch').style.display = hasClutch ? 'flex' : 'none';
@@ -459,7 +496,35 @@ window.themes = ['light', 'dark', 'amoled'];
   function renderEditorList() {
     var list = document.getElementById('editor-buttons-list');
     list.innerHTML = '';
-    if(!currentPreset || !currentPreset.buttons) return;
+    if(!currentPreset) return;
+
+    var modules = currentPreset.modules || [];
+    var camMod = modules.find(function(m) { return m.type === 'camera-joystick'; });
+    var camRow = document.createElement('div');
+    camRow.className = 'edit-btn-row';
+    var camPos = camMod ? camMod.position : '';
+    camRow.innerHTML = `
+      <label style="font-weight:bold; min-width:80px">📷 Camera Joystick</label>
+      <select onchange="updateCamJoyPos(this.value)">
+        <option value="" ${!camPos?'selected':''}>None (disabled)</option>
+        <option value="wheel-center" ${camPos==='wheel-center'?'selected':''}>Wheel Center</option>
+        <option value="slot-left-top" ${camPos==='slot-left-top'?'selected':''}>Left (Top)</option>
+        <option value="slot-left-bot" ${camPos==='slot-left-bot'?'selected':''}>Left (Bottom)</option>
+        <option value="slot-left-mid-mid" ${camPos==='slot-left-mid-mid'?'selected':''}>Left-Mid (Middle)</option>
+        <option value="slot-left-mid-bot" ${camPos==='slot-left-mid-bot'?'selected':''}>Left-Mid (Bottom)</option>
+        <option value="slot-right-mid-top" ${camPos==='slot-right-mid-top'?'selected':''}>Right-Mid (Top)</option>
+        <option value="slot-right-mid-mid" ${camPos==='slot-right-mid-mid'?'selected':''}>Right-Mid (Middle)</option>
+        <option value="slot-right-mid-bot" ${camPos==='slot-right-mid-bot'?'selected':''}>Right-Mid (Bottom)</option>
+        <option value="slot-right-top" ${camPos==='slot-right-top'?'selected':''}>Right (Top)</option>
+        <option value="slot-right-mid" ${camPos==='slot-right-mid'?'selected':''}>Right (Middle)</option>
+      </select>
+    `;
+    list.appendChild(camRow);
+
+    var sep = document.createElement('hr');
+    list.appendChild(sep);
+
+    if(!currentPreset.buttons) return;
     
     currentPreset.buttons.forEach((btn, idx) => {
       var row = document.createElement('div');
@@ -482,8 +547,10 @@ window.themes = ['light', 'dark', 'amoled'];
           <option value="wheel-center" ${btn.position==='wheel-center'?'selected':''}>Wheel Center</option>
           <option value="slot-left-top" ${btn.position==='slot-left-top'?'selected':''}>Left (Top)</option>
           <option value="slot-left-bot" ${btn.position==='slot-left-bot'?'selected':''}>Left (Bottom)</option>
+          <option value="slot-left-mid-mid" ${btn.position==='slot-left-mid-mid'?'selected':''}>Left-Mid (Middle)</option>
           <option value="slot-left-mid-bot" ${btn.position==='slot-left-mid-bot'?'selected':''}>Left-Mid (Bottom)</option>
           <option value="slot-right-mid-top" ${btn.position==='slot-right-mid-top'?'selected':''}>Right-Mid (Top)</option>
+          <option value="slot-right-mid-mid" ${btn.position==='slot-right-mid-mid'?'selected':''}>Right-Mid (Middle)</option>
           <option value="slot-right-mid-bot" ${btn.position==='slot-right-mid-bot'?'selected':''}>Right-Mid (Bottom)</option>
           <option value="slot-right-top" ${btn.position==='slot-right-top'?'selected':''}>Right (Top)</option>
           <option value="slot-right-mid" ${btn.position==='slot-right-mid'?'selected':''}>Right (Middle)</option>
@@ -494,11 +561,22 @@ window.themes = ['light', 'dark', 'amoled'];
     });
   }
 
+  window.updateCamJoyPos = function(pos) {
+    if (!currentPreset.modules) currentPreset.modules = [];
+    currentPreset.modules = currentPreset.modules.filter(function(m) { return m.type !== 'camera-joystick'; });
+    if (pos) {
+      currentPreset.modules.push({ type: 'camera-joystick', position: pos });
+    }
+    renderButtons(currentPreset.buttons || [], currentPreset.modules || []);
+  };
+
   window.updateBtn = function(idx, field, val) {
     currentPreset.buttons[idx][field] = val;
+    renderButtons(currentPreset.buttons || [], currentPreset.modules || []);
   };
   window.deleteBtn = function(idx) {
     currentPreset.buttons.splice(idx, 1);
+    renderButtons(currentPreset.buttons || [], currentPreset.modules || []);
     renderEditorList();
   };
 
@@ -506,6 +584,7 @@ window.themes = ['light', 'dark', 'amoled'];
     if(!currentPreset.buttons) currentPreset.buttons = [];
     if(currentPreset.buttons.length >= 6) return alert('Maximum 6 buttons allowed');
     currentPreset.buttons.push({ id: 'btn_'+Date.now(), label: 'Btn', code: '0x126', position: 'slot-right-top' });
+    renderButtons(currentPreset.buttons || [], currentPreset.modules || []);
     renderEditorList();
   });
 
@@ -588,9 +667,6 @@ window.cycleTheme = function() {
  btn.textContent = emojis[window.themeIndex];
  }
 };
-
-// Initialize camera joystick after DOM ready
-initCameraJoystick();
 
 // Init
 loadPresetsList();

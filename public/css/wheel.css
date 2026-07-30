@@ -164,6 +164,11 @@ body.wheel-amoled .theme-btn.active {
 }
 .zone-slot:empty { display: none; }
 
+/* When a button or module is placed above gas/brake pedals, pedals container takes 2 vertical zones */
+#slot-left-top:not(:empty) + #slot-left-mid {
+  flex: 2 1 auto;
+}
+
 /* Sliders */
 .wheel-col-sliders {
   flex: 1 1 auto;
@@ -381,7 +386,42 @@ body.wheel-amoled .modal-content { background: #050505; color: #fff; }
   border: 1px solid #ccc;
 }
 
-/* Camera Joystick (wheel center zone) */
+/* Camera Joystick — positionable module (works in any zone) */
+.camera-joystick-zone {
+  position: relative !important;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  background: radial-gradient(circle at center, rgba(0,188,140,0.08) 0%, transparent 70%);
+  touch-action: none;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camera-joystick-zone::before {
+  content: '+';
+  position: absolute;
+  top: 50%; left: 50%;
+  font-size: 16px;
+  color: rgba(0,188,140,0.3);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.camera-joystick-label {
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-size: 10px;
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Legacy wheel-center-zone compat */
 .wheel-center-zone {
   position: relative;
   width: 50%;
@@ -389,17 +429,6 @@ body.wheel-amoled .modal-content { background: #050505; color: #fff; }
   border-radius: 50%;
   background: radial-gradient(circle at center, rgba(0,188,140,0.08) 0%, transparent 70%);
   touch-action: none;
-}
-
-.wheel-center-zone::before {
-  content: '';
-  position: absolute;
-  top: 50%; left: 50%;
-  width: 2px; height: 2px;
-  background: rgba(0,188,140,0.4);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
 }
 
 .camera-knob {
@@ -422,8 +451,12 @@ body.wheel-amoled .modal-content { background: #050505; color: #fff; }
     inset 0 2px 4px rgba(255,255,255,0.2);
   pointer-events: none;
   transform: translate(-50%, -50%);
-  transition: transform 0.05s linear;
+  transition: transform 0.15s ease-out;
   z-index: 10;
+}
+
+.camera-knob.active {
+  transition: none !important;
 }
 
 .camera-knob::after {
