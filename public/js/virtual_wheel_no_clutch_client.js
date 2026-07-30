@@ -13,10 +13,11 @@ window.themes = ['light', 'dark', 'amoled'];
   var EV_KEY = 0x01;
   var EV_ABS = 0x03;
 
-// Wheel axes (ABS) - NO ABS_RX (clutch)
+// Wheel axes (ABS) - No clutch slider, but ABS_RX still needed for camera joystick
 var ABS_X = 0x00; // Steering
 var ABS_Y = 0x01; // Throttle
 var ABS_Z = 0x02; // Brake
+var ABS_RX = 0x03; // (unused for clutch, but needed for camera joystick X)
 var ABS_RY = 0x04; // Camera X (right stick)
 var ABS_RZ = 0x05; // Camera Y (right stick)
 
@@ -426,9 +427,12 @@ var ABS_RZ = 0x05; // Camera Y (right stick)
         currentPreset = data;
         renderButtons(data.buttons || []);
         
+        // Guard: slider-clutch and edit-clutch-toggle don't exist in no-clutch page
+        var sliderClutch = document.getElementById('slider-clutch');
+        var editClutchToggle = document.getElementById('edit-clutch-toggle');
         var hasClutch = data.sliders && data.sliders.some(s => s.id === 'clutch' && s.visible);
-        document.getElementById('slider-clutch').style.display = hasClutch ? 'flex' : 'none';
-        document.getElementById('edit-clutch-toggle').checked = hasClutch;
+        if (sliderClutch) sliderClutch.style.display = hasClutch ? 'flex' : 'none';
+        if (editClutchToggle) editClutchToggle.checked = hasClutch;
         
         document.getElementById('edit-lefty-toggle').checked = !!data.leftyMode;
         var wheelMain = document.querySelector('.wheel-main');
@@ -511,7 +515,8 @@ var ABS_RZ = 0x05; // Camera Y (right stick)
     var name = document.getElementById('preset-name').value || 'Custom';
     currentPreset.name = name;
     
-    var hasClutch = document.getElementById('edit-clutch-toggle').checked;
+    var editClutchToggle = document.getElementById('edit-clutch-toggle');
+    var hasClutch = editClutchToggle ? editClutchToggle.checked : false;
     if(!currentPreset.sliders) currentPreset.sliders = [
       { id: "throttle", label: "Throttle", axis: "0x01", visible: true },
       { id: "brake", label: "Brake", axis: "0x02", visible: true },
