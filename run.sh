@@ -96,6 +96,7 @@ if [ -n "$GUI_MODE" ]; then
 else
     echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
     echo "Open https://$IP_ADDRESS:$PORT in your phone's browser"
+    echo "(or http://$IP_ADDRESS — auto-redirects to HTTPS)"
     echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
 fi
 
@@ -107,17 +108,23 @@ fi
 cleanup() {
 	trap - EXIT INT TERM HUP
     if [ -z "$GUI_MODE" ]; then
-	    echo "Closing port $PORT..."
+	    echo "Closing ports..."
     fi
 	if command -v firewall-cmd &>/dev/null; then
-		sudo firewall-cmd --remove-port=$PORT/tcp > /dev/null
+		sudo firewall-cmd --remove-port=$PORT/tcp > /dev/null 2>&1
+		sudo firewall-cmd --remove-port=80/tcp > /dev/null 2>&1
+		sudo firewall-cmd --remove-port=8080/tcp > /dev/null 2>&1
 	elif command -v ufw &>/dev/null; then
-		sudo ufw delete allow $PORT/tcp > /dev/null
+		sudo ufw delete allow $PORT/tcp > /dev/null 2>&1
+		sudo ufw delete allow 80/tcp > /dev/null 2>&1
+		sudo ufw delete allow 8080/tcp > /dev/null 2>&1
 	fi
     
     # Ensure all server processes are killed
     if command -v fuser &>/dev/null; then
         sudo fuser -k -s ${PORT}/tcp &>/dev/null || true
+        sudo fuser -k -s 80/tcp &>/dev/null || true
+        sudo fuser -k -s 8080/tcp &>/dev/null || true
     fi
 }
 
@@ -125,14 +132,18 @@ trap cleanup EXIT INT TERM HUP
 
 if command -v firewall-cmd &>/dev/null; then
     if [ -z "$GUI_MODE" ]; then
-	    echo "Temporarily opening port $PORT in firewalld..."
+	    echo "Temporarily opening ports in firewalld..."
     fi
 	sudo firewall-cmd --add-port=$PORT/tcp > /dev/null
+	sudo firewall-cmd --add-port=80/tcp > /dev/null 2>&1 || true
+	sudo firewall-cmd --add-port=8080/tcp > /dev/null 2>&1 || true
 elif command -v ufw &>/dev/null; then
     if [ -z "$GUI_MODE" ]; then
-	    echo "Temporarily opening port $PORT in ufw..."
+	    echo "Temporarily opening ports in ufw..."
     fi
 	sudo ufw allow $PORT/tcp > /dev/null
+	sudo ufw allow 80/tcp > /dev/null 2>&1 || true
+	sudo ufw allow 8080/tcp > /dev/null 2>&1 || true
 fi
 
 HOT_RELOAD_ENV=""

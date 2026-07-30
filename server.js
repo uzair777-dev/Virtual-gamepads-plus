@@ -5,7 +5,54 @@ Created by MIROOF on 04/03/2015
 Virtual gamepad application
  */
 
+// ========== NODE PROCESS-LEVEL DIAGNOSTICS (runs before everything) ==========
 (function() {
+  // Early console log before winston loads, in case winston itself crashes
+  var _startTime = Date.now();
+  console.log('[NODE] ============================================');
+  console.log('[NODE] Process starting at ' + new Date().toISOString());
+  console.log('[NODE] Node.js version: ' + process.version);
+  console.log('[NODE] Platform: ' + process.platform + ' | Arch: ' + process.arch);
+  console.log('[NODE] PID: ' + process.pid + ' | PPID: ' + process.ppid);
+  console.log('[NODE] User: ' + (process.env.USER || process.env.USERNAME || 'unknown') + ' | UID: ' + (process.getuid ? process.getuid() : 'N/A') + ' | GID: ' + (process.getgid ? process.getgid() : 'N/A'));
+  console.log('[NODE] CWD: ' + process.cwd());
+  console.log('[NODE] __dirname: ' + __dirname);
+  console.log('[NODE] argv: ' + JSON.stringify(process.argv));
+  console.log('[NODE] env.PORT: ' + (process.env.PORT || 'not set'));
+  console.log('[NODE] env.LOGLEVEL: ' + (process.env.LOGLEVEL || 'not set'));
+  console.log('[NODE] env.HOT_RELOAD: ' + (process.env.HOT_RELOAD || 'not set'));
+  var mem = process.memoryUsage();
+  console.log('[NODE] Memory: RSS=' + Math.round(mem.rss/1024/1024) + 'MB | Heap=' + Math.round(mem.heapUsed/1024/1024) + '/' + Math.round(mem.heapTotal/1024/1024) + 'MB');
+  console.log('[NODE] ============================================');
+
+  // Catch EVERYTHING at the Node level
+  process.on('warning', function(warning) {
+    console.log('[NODE] WARNING: ' + warning.name + ': ' + warning.message);
+    if (warning.stack) console.log('[NODE] Stack: ' + warning.stack);
+  });
+
+  process.on('uncaughtException', function(err) {
+    console.log('[NODE] UNCAUGHT EXCEPTION: ' + err.message);
+    console.log('[NODE] Stack: ' + err.stack);
+    // Don't exit — let the forever monitor handle it, but log it
+  });
+
+  process.on('unhandledRejection', function(reason, promise) {
+    console.log('[NODE] UNHANDLED REJECTION: ' + reason);
+  });
+
+  process.on('exit', function(code) {
+    var uptime = ((Date.now() - _startTime) / 1000).toFixed(1);
+    console.log('[NODE] Process exiting with code ' + code + ' after ' + uptime + 's uptime');
+  });
+
+  ['SIGTERM', 'SIGINT', 'SIGHUP', 'SIGUSR1', 'SIGUSR2'].forEach(function(sig) {
+    process.on(sig, function() {
+      console.log('[NODE] Received signal: ' + sig);
+    });
+  });
+  // ========== END NODE DIAGNOSTICS ==========
+
   var app, config, express, gamepad_hub, gp_hub, https, fs, server, io, kb_hub, keyboard_hub, log, path, port, suffix, touchpad_hub, tp_hub;
 
   path = require('path');
@@ -13,10 +60,13 @@ Virtual gamepad application
   app = express();
   https = require('https');
   fs = require('fs');
+  console.log('[NODE] Core modules loaded (path, express, https, fs)');
 
   // Read settings and required modules
   config = require('./config.json');
+  console.log('[NODE] Config loaded: ' + JSON.stringify(config));
   log = require('./lib/log');
+  console.log('[NODE] Logger loaded');
 
   // SSL settings for HTTPS server
   var sslDir = path.join(__dirname, 'ssl');
@@ -28,11 +78,28 @@ Virtual gamepad application
       fs.mkdirSync(sslDir, { recursive: true });
     }
     if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
-      log('info', 'Generating self-signed SSL certificate...');
+      log('info', 'Generating self-signed SSL certificate with SAN...');
       var child_process = require('child_process');
+      var os = require('os');
+
+      // Collect all local IP addresses for SAN entries
+      var sanEntries = ['DNS:localhost', 'IP:127.0.0.1', 'IP:::1'];
+      var interfaces = os.networkInterfaces();
+      Object.keys(interfaces).forEach(function(ifname) {
+        interfaces[ifname].forEach(function(iface) {
+          if (!iface.internal && iface.family === 'IPv4') {
+            sanEntries.push('IP:' + iface.address);
+          }
+        });
+      });
+      var sanString = sanEntries.join(',');
+      log('info', 'Certificate SANs: ' + sanString);
+
       try {
         child_process.execSync(
-          'openssl req -x509 -newkey rsa:4096 -keyout "' + keyPath + '" -out "' + certPath + '" -days 3650 -nodes -subj "/C=US/ST=State/L=Locality/O=Organization/CN=localhost"',
+          'openssl req -x509 -newkey rsa:2048 -keyout "' + keyPath + '" -out "' + certPath + '" -days 3650 -nodes ' +
+          '-subj "/C=US/ST=State/L=Locality/O=VirtualGamepads/CN=localhost" ' +
+          '-addext "subjectAltName=' + sanString + '"',
           { stdio: 'ignore' }
         );
         log('info', 'SSL certificate generated at ' + sslDir);
@@ -44,36 +111,98 @@ Virtual gamepad application
   }
 
   ensureCerts();
+  log('debug', '[INIT] SSL certs verified at ' + sslDir);
 
   var options = {
     key: fs.readFileSync(keyPath),
     cert: fs.readFileSync(certPath),
   };
+  log('debug', '[INIT] SSL key size: ' + options.key.length + ' bytes, cert size: ' + options.cert.length + ' bytes');
+
+  // Dump certificate SAN info for verification
+  try {
+    var _cp = require('child_process');
+    var _sanInfo = _cp.execSync('openssl x509 -in "' + certPath + '" -noout -ext subjectAltName 2>/dev/null', { encoding: 'utf8' }).trim();
+    log('debug', '[INIT] Certificate SAN: ' + _sanInfo);
+  } catch(e) { log('debug', '[INIT] Could not read SAN from cert'); }
 
   // Create HTTPS server
   server = https.createServer(options, app);
+
+  // ========== DEEP CONNECTION DEBUG LOGGING ==========
+  // Log raw TCP connections (before TLS handshake)
+  server.on('connection', function(socket) {
+    var remote = socket.remoteAddress + ':' + socket.remotePort;
+    log('debug', '[TCP] New connection from ' + remote);
+    socket.on('error', function(err) {
+      log('debug', '[TCP] Socket error from ' + remote + ': ' + err.message);
+    });
+    socket.on('close', function(hadError) {
+      log('debug', '[TCP] Connection closed from ' + remote + (hadError ? ' (with error)' : ''));
+    });
+  });
+
+  // Log successful TLS handshakes
+  server.on('secureConnection', function(tlsSocket) {
+    var remote = tlsSocket.remoteAddress + ':' + tlsSocket.remotePort;
+    var proto = tlsSocket.getProtocol ? tlsSocket.getProtocol() : 'unknown';
+    var cipher = tlsSocket.getCipher ? JSON.stringify(tlsSocket.getCipher()) : 'unknown';
+    log('debug', '[TLS] Handshake SUCCESS from ' + remote + ' | protocol=' + proto + ' cipher=' + cipher);
+  });
+
+  // Log TLS handshake failures (this is likely where phone connections die)
+  server.on('tlsClientError', function(err, tlsSocket) {
+    var remote = tlsSocket.remoteAddress ? (tlsSocket.remoteAddress + ':' + tlsSocket.remotePort) : 'unknown';
+    log('warning', '[TLS] Handshake FAILED from ' + remote + ': ' + err.message);
+    log('debug', '[TLS] Error code: ' + err.code + ' | Stack: ' + err.stack);
+  });
+
+  // Log HTTP-level client errors
+  server.on('clientError', function(err, socket) {
+    var remote = socket.remoteAddress ? (socket.remoteAddress + ':' + socket.remotePort) : 'unknown';
+    log('warning', '[HTTP] Client error from ' + remote + ': ' + err.message);
+  });
+
+  // Catch uncaught exceptions to prevent silent crashes
+  process.on('uncaughtException', function(err) {
+    log('error', '[CRASH] Uncaught exception: ' + err.message);
+    log('error', '[CRASH] Stack: ' + err.stack);
+  });
+
+  process.on('unhandledRejection', function(reason) {
+    log('error', '[CRASH] Unhandled rejection: ' + reason);
+  });
+  // ========== END DEBUG LOGGING ==========
 
   // Connect Socket.IO to HTTPS server
   io = require('socket.io')(server);
 
   // Load controller-related modules
+  log('debug', '[INIT] Loading controller hubs...');
   gamepad_hub = require('./app/virtual_gamepad_hub');
   gp_hub = new gamepad_hub();
+  log('debug', '[INIT] ✓ Gamepad hub loaded');
 
   keyboard_hub = require('./app/virtual_keyboard_hub');
   kb_hub = new keyboard_hub();
+  log('debug', '[INIT] ✓ Keyboard hub loaded');
 
   touchpad_hub = require('./app/virtual_touchpad_hub');
   tp_hub = new touchpad_hub();
+  log('debug', '[INIT] ✓ Touchpad hub loaded');
 
   var xinput_gamepad_hub = require('./app/virtual_xinput_gamepad_hub');
   var xgp_hub = new xinput_gamepad_hub();
+  log('debug', '[INIT] ✓ XInput gamepad hub loaded');
   
   var xboxone_gamepad_hub = require('./app/virtual_xboxone_hub');
   var xboxone_hub = new xboxone_gamepad_hub();
+  log('debug', '[INIT] ✓ Xbox One hub loaded');
 
   var virtual_wheel_hub = require('./app/virtual_wheel_hub');
   var wh_hub = new virtual_wheel_hub();
+  log('debug', '[INIT] ✓ Wheel hub loaded');
+  log('debug', '[INIT] All controller hubs loaded successfully');
 
 // Port configuration - try primary first, then fallbacks
 var primaryPort = process.env.PORT || config.port;
@@ -95,6 +224,12 @@ if (config.analog) {
     } else {
       return res.redirect('index.html' + suffix);
     }
+  });
+
+  // Request logging middleware (logs every HTTP request that makes it through TLS)
+  app.use(function(req, res, next) {
+    log('debug', '[HTTP] ' + req.method + ' ' + req.url + ' from ' + req.ip);
+    next();
   });
 
   // Serve static files
@@ -451,33 +586,96 @@ socket.on('connectWheelNoClutch', function() {
   });
 
 // Try ports sequentially with fallback support
+// Use the original `server` (which has Socket.IO attached) for the first attempt.
+// For fallback ports, create a new HTTPS server and re-attach Socket.IO to it.
 var tryPort = function(ports, index) {
  if (index >= ports.length || index >= maxTries) {
  log('error', 'No available ports found after ' + maxTries + ' attempts');
  process.exit(1);
  }
  var attemptPort = ports[index];
- var tempServer = https.createServer(options, app);
- tempServer.on('error', function(err) {
- if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
- log('info', 'Port ' + attemptPort + ' unavailable, trying next...');
- tempServer.close();
- tryPort(ports, index + 1);
+ // Use the original server (with Socket.IO already attached) for the first try.
+ // For subsequent tries, create a new server and re-attach Socket.IO.
+ var listenServer;
+ if (index === 0) {
+  listenServer = server;
  } else {
- log('error', 'Server error on port ' + attemptPort + ': ' + err.message);
- tempServer.close();
- tryPort(ports, index + 1);
+  listenServer = https.createServer(options, app);
+  // Re-attach Socket.IO to the new server
+  io.attach(listenServer);
+ }
+ listenServer.on('error', function(err) {
+ if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
+  log('info', 'Port ' + attemptPort + ' unavailable, trying next...');
+  listenServer.removeAllListeners();
+  tryPort(ports, index + 1);
+ } else {
+  log('error', 'Server error on port ' + attemptPort + ': ' + err.message);
+  listenServer.removeAllListeners();
+  tryPort(ports, index + 1);
  }
  });
- tempServer.on('listening', function() {
- server = tempServer;
+ listenServer.on('listening', function() {
+ server = listenServer;
  port = attemptPort;
  log('info', '󰌗 Listening on ' + port);
+ // Dump full server address and network info
+ var addr = listenServer.address();
+ log('debug', '[LISTEN] Server address: ' + JSON.stringify(addr));
+ log('debug', '[LISTEN] Server bound to: ' + addr.address + ':' + addr.port + ' (' + addr.family + ')');
+ // Dump all network interfaces
+ var _os = require('os');
+ var _ifaces = _os.networkInterfaces();
+ Object.keys(_ifaces).forEach(function(ifname) {
+   _ifaces[ifname].forEach(function(iface) {
+     log('debug', '[LISTEN] Network interface: ' + ifname + ' | ' + iface.family + ' ' + iface.address + (iface.internal ? ' (internal)' : ' (external)'));
+   });
  });
- tempServer.listen(attemptPort, '0.0.0.0');
+ var uptime = ((Date.now() - _startTime) / 1000).toFixed(1);
+ log('info', '[LISTEN] Server fully ready in ' + uptime + 's');
+ log('info', '[LISTEN] Accepting connections on https://0.0.0.0:' + port);
+ });
+ log('debug', '[PORT] Attempting to bind port ' + attemptPort + '...');
+ listenServer.listen(attemptPort, '0.0.0.0');
 };
 
 // Start trying ports
 tryPort(allPorts, 0);
+
+// ========== HTTP → HTTPS REDIRECT SERVER ==========
+// When users type just an IP address, phones default to http://
+// This server catches those plain HTTP requests and redirects to https://
+var http = require('http');
+var httpRedirectPort = 80;
+
+var redirectApp = http.createServer(function(req, res) {
+  var host = req.headers.host || '';
+  // Strip any existing port from the host header
+  var hostname = host.replace(/:\d+$/, '');
+  var httpsUrl = 'https://' + hostname + ':' + (port || primaryPort) + req.url;
+  log('info', '[HTTP→HTTPS] Redirecting ' + req.socket.remoteAddress + ' from http://' + host + req.url + ' → ' + httpsUrl);
+  res.writeHead(301, { 'Location': httpsUrl });
+  res.end('Redirecting to ' + httpsUrl);
+});
+
+redirectApp.on('error', function(err) {
+  if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
+    if (httpRedirectPort === 80) {
+      httpRedirectPort = 8080;
+      log('info', '[HTTP→HTTPS] Port 80 unavailable, trying port 8080 for HTTP redirect...');
+      redirectApp.listen(8080, '0.0.0.0');
+    } else {
+      log('info', '[HTTP→HTTPS] Could not start HTTP redirect server (port ' + httpRedirectPort + ' unavailable). Users must type https:// manually.');
+    }
+  }
+});
+
+redirectApp.on('listening', function() {
+  log('info', '[HTTP→HTTPS] HTTP redirect server listening on port ' + httpRedirectPort);
+  log('info', '[HTTP→HTTPS] Users can now type http://<ip>:' + httpRedirectPort + ' and will be auto-redirected to HTTPS');
+});
+
+redirectApp.listen(httpRedirectPort, '0.0.0.0');
+// ========== END HTTP REDIRECT ==========
 
 }).call(this);

@@ -38,8 +38,14 @@ html, body {
 
 body.wheel-dark { background: #282828; color: #eee; }
 body.wheel-amoled {
- background: #000;
- color: #fff;
+  background: #000;
+  color: #fff;
+}
+
+/* CSS variables for proper sizing */
+#wheel-controller {
+  --wheel-size: clamp(150px, 45cqmin, 300px);
+  --wheel-center-size: calc(var(--wheel-size) * 0.5);
 }
 
 /* SVG Wheel Color Change for Themes */
@@ -205,6 +211,9 @@ body.wheel-amoled .theme-btn.active {
   width: var(--wheel-size);
   height: var(--wheel-size);
   perspective: 1000px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .steering-wheel {
@@ -293,6 +302,9 @@ body.wheel-amoled .wheel-btn { background: #111; color: #fff; border-color: #333
   justify-content: center;
   gap: 10px;
   padding: 5px;
+  flex: 0 0 auto;
+  margin-top: auto;
+  z-index: 20;
 }
 
 .wheel-util-btn {
