@@ -16,6 +16,8 @@ View [TODO](#todo) for Upcoming stuffs
 
 ## Install and run:
 ```bash
+    curl -fsSL https://raw.githubusercontent.com/uzair777-dev/Virtual-gamepads-plus/main/install.sh | bash
+    # Or
     git clone https://github.com/uzair777-dev/Virtual-gamepads-plus
     cd Virtual-gamepads-plus
     # Make script executable by this command or gui
