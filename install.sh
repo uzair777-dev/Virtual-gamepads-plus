@@ -230,11 +230,12 @@ else
     fi
 fi
 
-# NPM & Permissions
-echo "[3/4] Installing Node packages..."
+# NPM & Native Compilation
+echo "[3/5] Installing & compiling Node packages on user architecture..."
 npm install
+npm rebuild
 
-echo "[4/4] Configuring uinput device permissions..."
+echo "[4/5] Configuring uinput device permissions..."
 if [ -f "./setup-permissions.sh" ]; then
     chmod +x ./setup-permissions.sh
 fi
@@ -244,11 +245,50 @@ echo "$RULE" | sudo tee /etc/udev/rules.d/99-uinput.rules > /dev/null 2>&1 || tr
 sudo udevadm control --reload-rules 2>/dev/null || true
 sudo udevadm trigger 2>/dev/null || true
 
+# 5. CLI Alias & Desktop Application Launcher
+echo "[5/5] Creating 'vgp' CLI command & Desktop Application Launcher..."
+PROJECT_ABS_DIR="$(pwd)"
+
+# CLI Wrapper ~/.local/bin/vgp
+mkdir -p "$HOME/.local/bin"
+cat << EOF > "$HOME/.local/bin/vgp"
+#!/bin/bash
+exec "$PROJECT_ABS_DIR/run.sh" "\$@"
+EOF
+chmod +x "$HOME/.local/bin/vgp"
+
+# Ensure ~/.local/bin is in PATH for bash/zsh if not already present
+for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    if [ -f "$rc" ] && ! grep -q '\.local/bin' "$rc"; then
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rc"
+    fi
+done
+
+# Desktop Entry for DE Launcher (GNOME, KDE, XFCE, etc.)
+mkdir -p "$HOME/.local/share/applications"
+ICON_PATH="$PROJECT_ABS_DIR/public/images/gamepad_icons/launcher-icon-4x.png"
+
+cat << EOF > "$HOME/.local/share/applications/virtual-gamepads-plus.desktop"
+[Desktop Entry]
+Name=Virtual Gamepads Plus
+Comment=Virtual Racing Wheel & Gamepad Server
+Exec=python3 $PROJECT_ABS_DIR/gui.py
+Icon=$ICON_PATH
+Terminal=false
+Type=Application
+Categories=Game;Utility;
+Keywords=gamepad;wheel;controller;racing;virtual;
+EOF
+
+chmod +x "$HOME/.local/share/applications/virtual-gamepads-plus.desktop"
+update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+
 echo ""
 echo "=================================================="
 echo "   ✓ Virtual Gamepads Plus Installed Successfully! "
 echo "=================================================="
 echo "To launch:"
+echo "  vgp                 (CLI mode from anywhere)"
 echo "  python3 gui.py      (GUI Manager)"
-echo "  ./run.sh            (CLI Server)"
+echo "  Or click 'Virtual Gamepads Plus' in your App Launcher!"
 echo "=================================================="

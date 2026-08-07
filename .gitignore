@@ -5,3 +5,12 @@ presets/
 ssl/
 __pycache__/
 .venv/
+build/
+build/Release/
+build/Debug/
+*.node
+*.o
+*.so
+*.a
+.vgp_qrcode_user.png
+
