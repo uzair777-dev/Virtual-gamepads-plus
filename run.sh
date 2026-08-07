@@ -178,5 +178,15 @@ if [ -n "$GUI_MODE" ]; then
     echo "GUI_STATUS=running"
 fi
 
-# Run virtual gamepad server
-sudo bash -c "$HOT_RELOAD_ENV $DEBUG_ENV $(which node) $SCRIPT_DIR/main.js"
+# Run virtual gamepad server (Smart Fallback Sudo Mode)
+if [ -w "/dev/uinput" ] && [ "${PORT:-8080}" -ge 1024 ]; then
+    if [ -z "$GUI_MODE" ]; then
+        echo "Running server in non-sudo mode (user has /dev/uinput permissions)..."
+    fi
+    env $HOT_RELOAD_ENV $DEBUG_ENV $(which node) "$SCRIPT_DIR/main.js"
+else
+    if [ -z "$GUI_MODE" ]; then
+        echo "Running server with sudo (/dev/uinput permission required or low port < 1024)..."
+    fi
+    sudo bash -c "$HOT_RELOAD_ENV $DEBUG_ENV $(which node) $SCRIPT_DIR/main.js"
+fi

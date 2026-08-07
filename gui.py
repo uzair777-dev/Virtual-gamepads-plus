@@ -6,9 +6,14 @@ import signal
 import json
 import fcntl
 import gi
-
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GLib, GdkPixbuf, Pango
+from gi.repository import GLib
+
+# Set prgname BEFORE Gtk import so Wayland GDK backend registers app_id correctly with compositors
+GLib.set_prgname("virtual-gamepads-plus")
+GLib.set_application_name("Virtual Gamepads Plus")
+
+from gi.repository import Gtk, GdkPixbuf, Pango
 
 # Try to import AppIndicator3 for modern system tray, fallback to Gtk.StatusIcon for older DEs
 try:
@@ -27,11 +32,66 @@ except ImportError:
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.expanduser('~/.config/virtual-gamepads-gui.json')
 
+# X11 & Wayland application ID binding for panel/dock icon mapping
+GLib.set_prgname("virtual-gamepads-plus")
+GLib.set_application_name("Virtual Gamepads Plus")
+
+def ensure_wayland_panel_icon():
+    png_src = os.path.join(SCRIPT_DIR, 'public', 'branding', 'wheel_logo.png')
+    if not os.path.exists(png_src):
+        return
+
+    # 1. Install PNG into ~/.local/share/icons/hicolor/256x256/apps/ so desktop panels discover it
+    icon_target_dir = os.path.expanduser('~/.local/share/icons/hicolor/256x256/apps')
+    icon_target_file = os.path.join(icon_target_dir, 'virtual-gamepads-plus.png')
+    try:
+        os.makedirs(icon_target_dir, exist_ok=True)
+        import shutil
+        shutil.copyfile(png_src, icon_target_file)
+    except Exception:
+        pass
+
+    # 2. Ensure .desktop file exists with StartupWMClass so Wayland panels (GNOME, KDE, Hyprland, Sway) match the window
+    apps_dir = os.path.expanduser('~/.local/share/applications')
+    desktop_file = os.path.join(apps_dir, 'virtual-gamepads-plus.desktop')
+    try:
+        os.makedirs(apps_dir, exist_ok=True)
+        gui_py_path = os.path.join(SCRIPT_DIR, 'gui.py')
+        desktop_content = f"""[Desktop Entry]
+Name=Virtual Gamepads Plus
+Comment=Virtual Racing Wheel & Gamepad Server
+Exec=python3 {gui_py_path}
+Icon={png_src}
+Terminal=false
+Type=Application
+Categories=Game;Utility;
+StartupWMClass=virtual-gamepads-plus
+"""
+        with open(desktop_file, 'w') as f:
+            f.write(desktop_content)
+    except Exception:
+        pass
+
+ensure_wayland_panel_icon()
+
 class VirtualGamepadsGUI(Gtk.Window):
     def __init__(self):
         super().__init__(title="Virtual Gamepads Plus")
+        self.set_wmclass("virtual-gamepads-plus", "Virtual-gamepads-plus")
         self.set_default_size(600, 500)
         self.set_border_width(10)
+
+        # Set Window & Application Icon for X11 & Wayland (PNG format for Wayland compositors)
+        png_path = os.path.join(SCRIPT_DIR, 'public', 'branding', 'wheel_logo.png')
+        ico_path = os.path.join(SCRIPT_DIR, 'public', 'branding', 'wheel_logo.ico')
+        icon_path = png_path if os.path.exists(png_path) else ico_path
+
+        if os.path.exists(icon_path):
+            try:
+                self.set_icon_from_file(icon_path)
+                Gtk.Window.set_default_icon_from_file(icon_path)
+            except Exception as e:
+                print(f"Notice: Could not load window icon: {e}")
         self.server_process = None
         self.io_watch_id = None
         self.user_stopped = False
@@ -173,10 +233,18 @@ class VirtualGamepadsGUI(Gtk.Window):
             self.user_stopped = False
 
         self.start_btn.set_sensitive(False)
-        
         run_script = os.path.join(SCRIPT_DIR, 'run.sh')
         
-        cmd = ['pkexec', 'bash', run_script, '--gui']
+        # Smart Fallback Sudo Mode: run without pkexec if /dev/uinput is writable
+        has_uinput_perm = os.access('/dev/uinput', os.W_OK)
+        if has_uinput_perm:
+            cmd = ['bash', run_script, '--gui']
+            self.is_elevated = False
+        else:
+            cmd = ['pkexec', 'bash', run_script, '--gui']
+            self.is_elevated = True
+            self.log("Notice: Running elevated via pkexec. Run ./install.sh to enable passwordless mode.\n\n")
+
         if self.hot_reload_toggle.get_active():
             cmd.append('--hot-reload')
         if self.debug_toggle.get_active():
@@ -186,7 +254,8 @@ class VirtualGamepadsGUI(Gtk.Window):
             self.server_process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT
+                stderr=subprocess.STDOUT,
+                preexec_fn=os.setsid
             )
             
             # Make stdout non-blocking
@@ -194,13 +263,24 @@ class VirtualGamepadsGUI(Gtk.Window):
             fl = fcntl.fcntl(fd, fcntl.F_GETFL)
             fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
             
-            self.io_watch_id = GLib.io_add_watch(self.server_process.stdout, GLib.IO_IN | GLib.IO_HUP, self.on_process_output)
-            self.stop_btn.set_sensitive(True)
-            self.update_status_label(True)
+            # Watch stdout for data
+            self.io_watch_id = GLib.io_add_watch(
+                self.server_process.stdout,
+                GLib.IO_IN | GLib.IO_HUP | GLib.IO_ERR,
+                self.on_server_output
+            )
+            
+            self.status_label.set_markup("<span foreground='#2196F3' weight='bold'>Starting...</span>")
+            self.tray_item_start.set_sensitive(False)
+            self.tray_item_stop.set_sensitive(True)
             
         except Exception as e:
-            self.log(f"Failed to start server: {e}\n")
-            self.start_btn.set_sensitive(True)
+            self.log(f"Failed to start server process: {e}\n")
+            self.server_stopped()
+
+    def on_server_output(self, source, condition):
+        # Alias for on_process_output for consistency with logic injection
+        return self.on_process_output(source, condition)
 
     def on_process_output(self, source, condition):
         if condition & GLib.IO_IN:
@@ -382,19 +462,29 @@ class VirtualGamepadsGUI(Gtk.Window):
         
         menu.show_all()
 
-        icon_name = "input-gamepad"
+        png_path = os.path.join(SCRIPT_DIR, 'public', 'branding', 'wheel_logo.png')
+        ico_path = os.path.join(SCRIPT_DIR, 'public', 'branding', 'wheel_logo.ico')
+        icon_path = png_path if os.path.exists(png_path) else ico_path
+        tray_icon_source = icon_path if os.path.exists(icon_path) else "virtual-gamepads-plus"
         
         if HAS_APPINDICATOR:
             self.indicator = AppIndicator.Indicator.new(
-                "virtual-gamepads",
-                icon_name,
+                "virtual-gamepads-plus",
+                tray_icon_source,
                 AppIndicator.IndicatorCategory.APPLICATION_STATUS
             )
             # Make the tray icon always visible (ACTIVE) if the Desktop Environment supports it
             self.indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
             self.indicator.set_menu(menu)
         elif hasattr(Gtk, 'StatusIcon'):
-            self.status_icon = Gtk.StatusIcon.new_from_icon_name(icon_name)
+            if os.path.exists(icon_path):
+                try:
+                    pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_path)
+                    self.status_icon = Gtk.StatusIcon.new_from_pixbuf(pixbuf)
+                except Exception:
+                    self.status_icon = Gtk.StatusIcon.new_from_icon_name("input-gamepad")
+            else:
+                self.status_icon = Gtk.StatusIcon.new_from_icon_name("input-gamepad")
             self.status_icon.connect("popup-menu", self.on_tray_popup, menu)
             self.status_icon.connect("activate", self.on_tray_show)
             self.status_icon.set_visible(True)

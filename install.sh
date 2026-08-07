@@ -50,6 +50,19 @@ elif [ -d "/sysroot/ostree" ] || [ -f "/run/ostree-booted" ] || grep -qE "bazzit
     IS_ATOMIC=1
 fi
 
+# Request sudo upfront with clear explanation (unless Nix/musl where sudo is handled separately)
+if [ $IS_NIX -eq 0 ] && [ $IS_VOID_MUSL -eq 0 ]; then
+    echo "Notice: Sudo privileges are requested upfront to:"
+    echo "  • Install system package dependencies"
+    echo "  • Configure /dev/uinput permissions (udev rules & input group)"
+    echo "  • Pre-authorize firewall ports so future launches require NO password/sudo"
+    echo ""
+    sudo -v
+    
+    # Keep sudo timestamp alive in background until install.sh finishes
+    while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+fi
+
 detect_and_install_deps() {
     echo "[1/4] Checking environment & package managers..."
     if [ $DEBUG_MODE -eq 1 ]; then
@@ -216,18 +229,27 @@ detect_and_install_deps() {
 
 detect_and_install_deps
 
-# Repository setup
-echo "[2/4] Setting up project directory..."
-if [ -d ".git" ] && git remote get-url origin 2>/dev/null | grep -q "Virtual-gamepads"; then
+# Repository & Application Directory setup
+INSTALL_TARGET_DIR="$HOME/.local/share/virtual-gamepads-plus"
+echo "[2/5] Installing application files to $INSTALL_TARGET_DIR..."
+
+if [ -d ".git" ] && [ "$(pwd)" != "$INSTALL_TARGET_DIR" ]; then
+    echo "Syncing code from $(pwd) to $INSTALL_TARGET_DIR..."
+    mkdir -p "$INSTALL_TARGET_DIR"
+    cp -rf . "$INSTALL_TARGET_DIR/" 2>/dev/null || true
+    cd "$INSTALL_TARGET_DIR"
+elif [ -d ".git" ]; then
+    echo "Already in $INSTALL_TARGET_DIR. Updating repository..."
     git pull origin main || true
 else
-    if [ ! -d "$TARGET_DIR" ]; then
-        git clone "$REPO_URL" "$TARGET_DIR"
-        cd "$TARGET_DIR"
+    if [ ! -d "$INSTALL_TARGET_DIR" ]; then
+        echo "Cloning repository to $INSTALL_TARGET_DIR..."
+        git clone "$REPO_URL" "$INSTALL_TARGET_DIR"
     else
-        cd "$TARGET_DIR"
-        git pull origin main || true
+        echo "Updating existing installation in $INSTALL_TARGET_DIR..."
+        (cd "$INSTALL_TARGET_DIR" && git pull origin main || true)
     fi
+    cd "$INSTALL_TARGET_DIR"
 fi
 
 # NPM & Native Compilation
@@ -235,15 +257,43 @@ echo "[3/5] Installing & compiling Node packages on user architecture..."
 npm install
 npm rebuild
 
-echo "[4/5] Configuring uinput device permissions..."
+echo "[4/5] Pre-authorizing uinput & firewall permissions via sudo..."
 if [ -f "./setup-permissions.sh" ]; then
     chmod +x ./setup-permissions.sh
 fi
+
+# 1. uinput Group & Udev Rule
 sudo usermod -aG input "$USER" 2>/dev/null || true
 RULE='KERNEL=="uinput", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"'
 echo "$RULE" | sudo tee /etc/udev/rules.d/99-uinput.rules > /dev/null 2>&1 || true
 sudo udevadm control --reload-rules 2>/dev/null || true
 sudo udevadm trigger 2>/dev/null || true
+sudo chmod 666 /dev/uinput 2>/dev/null || true
+
+# SSL Cert Ownership Fix (if root previously created key.pem)
+mkdir -p ssl
+sudo chown -R "$USER:$USER" ssl 2>/dev/null || true
+chmod 777 ssl 2>/dev/null || true
+chmod 666 ssl/* 2>/dev/null || true
+
+# 2. Permanent Firewall Port Authorization (8080/80)
+if command -v firewall-cmd &>/dev/null; then
+    sudo firewall-cmd --permanent --add-port=8080/tcp >/dev/null 2>&1 || true
+    sudo firewall-cmd --permanent --add-port=80/tcp >/dev/null 2>&1 || true
+    sudo firewall-cmd --reload >/dev/null 2>&1 || true
+elif command -v ufw &>/dev/null; then
+    sudo ufw allow 8080/tcp >/dev/null 2>&1 || true
+    sudo ufw allow 80/tcp >/dev/null 2>&1 || true
+elif command -v iptables &>/dev/null; then
+    sudo iptables -A INPUT -p tcp --dport 8080 -j ACCEPT >/dev/null 2>&1 || true
+    sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT >/dev/null 2>&1 || true
+fi
+
+# 3. Grant low-port capability to Node.js binary if setcap is available
+if command -v setcap &>/dev/null && command -v node &>/dev/null; then
+    NODE_BIN="$(readlink -f $(which node) 2>/dev/null || which node)"
+    sudo setcap 'cap_net_bind_service=+ep' "$NODE_BIN" 2>/dev/null || true
+fi
 
 # 5. CLI Alias & Desktop Application Launcher
 echo "[5/5] Creating 'vgp' CLI command & Desktop Application Launcher..."
@@ -264,9 +314,14 @@ for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
     fi
 done
 
-# Desktop Entry for DE Launcher (GNOME, KDE, XFCE, etc.)
+# Desktop Entry & Icon for DE Panels / Launchers (GNOME Wayland, KDE Wayland, XFCE, Hyprland)
 mkdir -p "$HOME/.local/share/applications"
-ICON_PATH="$PROJECT_ABS_DIR/public/images/gamepad_icons/launcher-icon-4x.png"
+mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps"
+ICON_PATH="$PROJECT_ABS_DIR/public/branding/wheel_logo.png"
+
+if [ -f "$ICON_PATH" ]; then
+    cp "$ICON_PATH" "$HOME/.local/share/icons/hicolor/256x256/apps/virtual-gamepads-plus.png"
+fi
 
 cat << EOF > "$HOME/.local/share/applications/virtual-gamepads-plus.desktop"
 [Desktop Entry]
@@ -278,10 +333,12 @@ Terminal=false
 Type=Application
 Categories=Game;Utility;
 Keywords=gamepad;wheel;controller;racing;virtual;
+StartupWMClass=virtual-gamepads-plus
 EOF
 
 chmod +x "$HOME/.local/share/applications/virtual-gamepads-plus.desktop"
 update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
 
 echo ""
 echo "=================================================="

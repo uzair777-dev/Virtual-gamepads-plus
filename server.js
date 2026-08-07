@@ -77,6 +77,20 @@ Virtual gamepad application
     if (!fs.existsSync(sslDir)) {
       fs.mkdirSync(sslDir, { recursive: true });
     }
+    if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+      try {
+        fs.accessSync(keyPath, fs.constants.R_OK);
+        fs.accessSync(certPath, fs.constants.R_OK);
+      } catch (permErr) {
+        log('warning', '[AUTO-HEAL] SSL certificate permission error (EACCES). Fixing file permissions...');
+        try {
+          var _cp = require('child_process');
+          _cp.execSync('chmod 666 "' + keyPath + '" "' + certPath + '" 2>/dev/null || true');
+          _cp.execSync('chmod 777 "' + sslDir + '" 2>/dev/null || true');
+        } catch(e) {}
+      }
+    }
+
     if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
       log('info', 'Generating self-signed SSL certificate with SAN...');
       var child_process = require('child_process');
@@ -102,6 +116,7 @@ Virtual gamepad application
           '-addext "subjectAltName=' + sanString + '"',
           { stdio: 'ignore' }
         );
+        child_process.execSync('chmod 666 "' + keyPath + '" "' + certPath + '" 2>/dev/null || true');
         log('info', 'SSL certificate generated at ' + sslDir);
       } catch (err) {
         log('error', 'Failed to generate SSL certificate: ' + err.message);
@@ -113,9 +128,24 @@ Virtual gamepad application
   ensureCerts();
   log('debug', '[INIT] SSL certs verified at ' + sslDir);
 
+  var keyData, certData;
+  try {
+    keyData = fs.readFileSync(keyPath);
+    certData = fs.readFileSync(certPath);
+  } catch (readErr) {
+    log('warning', '[AUTO-HEAL] Reading SSL cert failed (' + readErr.message + '). Regenerating certs...');
+    try {
+      if (fs.existsSync(keyPath)) fs.unlinkSync(keyPath);
+      if (fs.existsSync(certPath)) fs.unlinkSync(certPath);
+    } catch(e) {}
+    ensureCerts();
+    keyData = fs.readFileSync(keyPath);
+    certData = fs.readFileSync(certPath);
+  }
+
   var options = {
-    key: fs.readFileSync(keyPath),
-    cert: fs.readFileSync(certPath),
+    key: keyData,
+    cert: certData,
   };
   log('debug', '[INIT] SSL key size: ' + options.key.length + ' bytes, cert size: ' + options.cert.length + ' bytes');
 

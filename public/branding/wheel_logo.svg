@@ -7,8 +7,34 @@
    viewBox="0 0 163.52 163.52"
    version="1.1"
    id="svg1"
+   sodipodi:docname="wheel_logo.svg"
+   inkscape:export-filename="wheel_logo.ico"
+   inkscape:export-xdpi="23.7244"
+   inkscape:export-ydpi="23.7244"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
    xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="1.3057653"
+     inkscape:cx="309.01418"
+     inkscape:cy="309.01418"
+     inkscape:window-width="1920"
+     inkscape:window-height="1016"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg1" />
   <defs
      id="defs1">
     <linearGradient
@@ -21,7 +47,7 @@
   </defs>
   <g
      id="layer1"
-     transform="translate(-20.106164,-81.779042)">
+     transform="matrix(0.75960346,0,0,0.75960346,4.8922016,-40.033298)">
     <g
        id="g11"
        transform="translate(-6.6245353,8.0966546)">
