@@ -74,7 +74,7 @@ Usage
 
 ## Features
 --------
-### Plug up to ~~4 virtual gamepads~~ (New limits unknown, but Lets asume 4 for now)
+### Plug up to ~~4 virtual gamepads~~ (New limits unknown, but Lets assume 4 for now)
 The application will plug automatically a new controller when the web application is launched and unplug it at disconnection.
 4 slots are available so 4 virtual gamepads can be created. You can see your current slot on the indicator directly on the vitual gamepad.
 
@@ -137,14 +137,14 @@ If you want do add a new keyboard layout please refer to [this file](CREATE_KEYB
 3) Adding Support for wheel:
     - [x] Steering wheel native axis support
     - [x] Pedals support, with variable pressure sensitivity
-    - [ ] Shifter support(Probably)
+    - [x] Shifter support(Can be added through buttons and can be mapped through the game itself. So I guess that counts?)
     - [x] Button mapping
     - [ ] Profile support(Kind of works, but aint complete)
 
 4) Server-side profile management:
     - [ ] Add a settings page to load/save/edit profiles(Partially works, but not properly)
     - [ ] Save profiles to file, probabaly in ./config/controllerprofiles/ (?)
-    - [ ] Auto-load last profile (based on client, idk)
+    - [ ] Auto-load last profile (based on client, idk how to, yet)
     
 5) Better gyro implementation (This is pushed back in the development, will be resumed when other features are completed (or someone else implements it)):
     - [ ] Implement gyro first
@@ -153,8 +153,8 @@ If you want do add a new keyboard layout please refer to [this file](CREATE_KEYB
     - [ ] Centering on button press
 
 6) Profile switching(Yeah.. not having it):
-    - [ ] Quick profile toggle (LB/RB?)
-    - [ ] Visual indicator for active profile
+    - [ ] ~~Quick profile toggle (LB/RB?)~~ (Yeah not doing that)
+    - [ ] ~~Visual indicator for active profile~~(Not this one either)
 
 7) UI/UX improvements:
     - [ ] Touch lock toggle (disable gyro on touch)
@@ -180,7 +180,7 @@ If you want do add a new keyboard layout please refer to [this file](CREATE_KEYB
     - [ ] Add pictures of the new version 
 
 12) Installation:
-    - [ ] Install script that does most of the work
+    - [x] Install script that does most of the work
 
 
 
