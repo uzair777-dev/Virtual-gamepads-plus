@@ -118,6 +118,10 @@ cleanup() {
 		sudo ufw delete allow $PORT/tcp > /dev/null 2>&1
 		sudo ufw delete allow 80/tcp > /dev/null 2>&1
 		sudo ufw delete allow 8080/tcp > /dev/null 2>&1
+	elif command -v iptables &>/dev/null; then
+		sudo iptables -D INPUT -p tcp --dport $PORT -j ACCEPT > /dev/null 2>&1 || true
+		sudo iptables -D INPUT -p tcp --dport 80 -j ACCEPT > /dev/null 2>&1 || true
+		sudo iptables -D INPUT -p tcp --dport 8080 -j ACCEPT > /dev/null 2>&1 || true
 	fi
     
     # Ensure all server processes are killed
@@ -144,6 +148,20 @@ elif command -v ufw &>/dev/null; then
 	sudo ufw allow $PORT/tcp > /dev/null
 	sudo ufw allow 80/tcp > /dev/null 2>&1 || true
 	sudo ufw allow 8080/tcp > /dev/null 2>&1 || true
+elif command -v iptables &>/dev/null; then
+    if [ -z "$GUI_MODE" ]; then
+	    echo "Temporarily opening ports in iptables..."
+    fi
+	sudo iptables -A INPUT -p tcp --dport $PORT -j ACCEPT > /dev/null 2>&1 || true
+	sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT > /dev/null 2>&1 || true
+	sudo iptables -A INPUT -p tcp --dport 8080 -j ACCEPT > /dev/null 2>&1 || true
+elif grep -qE "ID=void|ID_LIKE=void" /etc/os-release 2>/dev/null || command -v xbps-install &>/dev/null; then
+    if [ -z "$GUI_MODE" ]; then
+	    echo "Void Linux detected. Void Linux does not ship with a default active firewall."
+	    echo "If using iptables, allow ports with:"
+	    echo "  sudo iptables -A INPUT -p tcp --dport $PORT -j ACCEPT"
+	    echo "Then install runit-iptables to save and restore rules across reboots."
+    fi
 fi
 
 HOT_RELOAD_ENV=""

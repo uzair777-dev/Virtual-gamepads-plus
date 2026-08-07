@@ -34,6 +34,11 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.set_border_width(10)
         self.server_process = None
         self.io_watch_id = None
+        self.user_stopped = False
+        self.crash_count = 0
+        self.max_crash_retries = 3
+        self.last_crash_time = 0
+        self.auto_restart_timeout_id = None
         
         self.load_config()
 
@@ -70,6 +75,10 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.stop_btn.set_sensitive(False)
         button_box.pack_start(self.stop_btn, False, False, 0)
         
+        # Checkbox controls
+        chk_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        vbox.pack_start(chk_box, False, False, 0)
+
         # Tray Toggle
         self.tray_toggle = Gtk.CheckButton(label="Minimise to tray on close")
         self.tray_toggle.set_active(self.config.get('minimise_to_tray', False))
@@ -77,8 +86,20 @@ class VirtualGamepadsGUI(Gtk.Window):
         if not HAS_APPINDICATOR and not hasattr(Gtk, 'StatusIcon'):
             self.tray_toggle.set_sensitive(False)
             self.tray_toggle.set_tooltip_text("System tray is not supported on this desktop environment.")
-        vbox.pack_start(self.tray_toggle, False, False, 0)
+        chk_box.pack_start(self.tray_toggle, False, False, 0)
         
+        # Hot Reload Toggle
+        self.hot_reload_toggle = Gtk.CheckButton(label="Hot Reload (watch for file changes)")
+        self.hot_reload_toggle.set_active(self.config.get('hot_reload', False))
+        self.hot_reload_toggle.connect("toggled", self.on_hot_reload_toggled)
+        chk_box.pack_start(self.hot_reload_toggle, False, False, 0)
+
+        # Debug Toggle
+        self.debug_toggle = Gtk.CheckButton(label="Debug Logging")
+        self.debug_toggle.set_active(self.config.get('debug', False))
+        self.debug_toggle.connect("toggled", self.on_debug_toggled)
+        chk_box.pack_start(self.debug_toggle, False, False, 0)
+
         # Log Output
         scrolled_window = Gtk.ScrolledWindow()
         scrolled_window.set_hexpand(True)
@@ -105,7 +126,7 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.connect("delete-event", self.on_delete_event)
         
     def load_config(self):
-        self.config = {'minimise_to_tray': False}
+        self.config = {'minimise_to_tray': False, 'hot_reload': False, 'debug': False}
         if os.path.exists(CONFIG_FILE):
             try:
                 with open(CONFIG_FILE, 'r') as f:
@@ -125,6 +146,14 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.config['minimise_to_tray'] = button.get_active()
         self.save_config()
 
+    def on_hot_reload_toggled(self, button):
+        self.config['hot_reload'] = button.get_active()
+        self.save_config()
+
+    def on_debug_toggled(self, button):
+        self.config['debug'] = button.get_active()
+        self.save_config()
+
     def update_status_label(self, running):
         if running:
             self.status_label.set_markup("<span foreground='green'>Status: ● Running</span>")
@@ -139,12 +168,19 @@ class VirtualGamepadsGUI(Gtk.Window):
         GLib.idle_add(self.log_view.scroll_to_mark, mark, 0.0, False, 0.0, 0.0)
 
     def on_start_clicked(self, button):
-        self.log_buffer.set_text("")
+        if button is not None:
+            self.log_buffer.set_text("")
+            self.user_stopped = False
+
         self.start_btn.set_sensitive(False)
         
         run_script = os.path.join(SCRIPT_DIR, 'run.sh')
         
         cmd = ['pkexec', 'bash', run_script, '--gui']
+        if self.hot_reload_toggle.get_active():
+            cmd.append('--hot-reload')
+        if self.debug_toggle.get_active():
+            cmd.append('--debug')
         
         try:
             self.server_process = subprocess.Popen(
@@ -218,6 +254,7 @@ class VirtualGamepadsGUI(Gtk.Window):
             self.log("QR code library not available. Use the URL above to connect.\n")
 
     def on_stop_clicked(self, button):
+        self.user_stopped = True
         self.stop_btn.set_sensitive(False)
         self.stop_server()
 
@@ -237,23 +274,95 @@ class VirtualGamepadsGUI(Gtk.Window):
                 self.log(f"Error stopping server: {e}\n")
 
     def server_stopped(self):
+        exit_code = None
         if self.server_process:
-            self.server_process.wait()
+            exit_code = self.server_process.wait()
             self.server_process = None
-            
+
         if self.io_watch_id:
             try:
                 GLib.source_remove(self.io_watch_id)
             except Exception:
                 pass
             self.io_watch_id = None
-            
+
+        # Clean stop by user
+        if hasattr(self, 'user_stopped') and self.user_stopped:
+            self.user_stopped = False
+            self._reset_ui_to_stopped()
+            self.log("\nServer stopped by user.\n")
+            return
+
+        # Crash recovery
+        if exit_code is not None and exit_code != 0:
+            import time
+            now = time.time()
+            if now - self.last_crash_time < 10:
+                self.crash_count += 1
+            else:
+                self.crash_count = 1
+            self.last_crash_time = now
+
+            if self.crash_count <= self.max_crash_retries:
+                self.log(f"\n⚠ Server crashed (exit code {exit_code}). "
+                         f"Auto-restarting ({self.crash_count}/{self.max_crash_retries})...\n")
+                self.auto_restart_timeout_id = GLib.timeout_add(2000, self._auto_restart)
+                return
+            else:
+                self._reset_ui_to_stopped()
+                self._show_crash_dialog(exit_code)
+                return
+
+        self._reset_ui_to_stopped()
+        self.log("\nServer stopped.\n")
+
+    def _reset_ui_to_stopped(self):
         self.start_btn.set_sensitive(True)
         self.stop_btn.set_sensitive(False)
         self.update_status_label(False)
         self.qr_image.hide()
         self.url_label.set_text("URL: Not running")
-        self.log("\nServer stopped.\n")
+
+    def _auto_restart(self):
+        self.auto_restart_timeout_id = None
+        self.log("Attempting restart...\n")
+        self.on_start_clicked(None)
+        return False
+
+    def _show_crash_dialog(self, exit_code):
+        end_iter = self.log_buffer.get_end_iter()
+        start_iter = self.log_buffer.get_iter_at_offset(max(0, end_iter.get_offset() - 3000))
+        log_tail = self.log_buffer.get_text(start_iter, end_iter, True)
+
+        error_text = (f"Server crashed {self.crash_count} times with exit code {exit_code}.\n"
+                      f"Could not auto-recover.\n\n"
+                      f"--- Last log output ---\n{log_tail}")
+
+        dialog = Gtk.MessageDialog(
+            transient_for=self,
+            flags=Gtk.DialogFlags.MODAL,
+            message_type=Gtk.MessageType.ERROR,
+            buttons=Gtk.ButtonsType.OK,
+            text="Internal Error — Server Crashed"
+        )
+        dialog.format_secondary_text("The server could not recover after multiple attempts. "
+                                      "Copy the details below for debugging.")
+
+        content_area = dialog.get_content_area()
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_min_content_height(200)
+        scroll.set_min_content_width(500)
+        error_view = Gtk.TextView()
+        error_view.set_editable(False)
+        error_view.get_buffer().set_text(error_text)
+        error_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        scroll.add(error_view)
+        content_area.pack_start(scroll, True, True, 10)
+        scroll.show_all()
+
+        dialog.run()
+        dialog.destroy()
+        self.crash_count = 0
 
     def setup_tray_icon(self):
         menu = Gtk.Menu()

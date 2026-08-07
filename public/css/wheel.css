@@ -210,6 +210,31 @@ body.wheel-amoled .theme-btn.active {
   transition: height 0.05s linear;
 }
 
+/* Pedal Button Mode (replaces slider track) */
+.pedal-button {
+  flex: 1;
+  width: var(--slider-width);
+  border-radius: 12px;
+  background: #ddd;
+  border: 2px solid #bbb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.1s ease, filter 0.1s ease;
+}
+
+.pedal-button.pressed {
+  transform: scale(0.93);
+  filter: brightness(0.75);
+}
+
+body.wheel-dark .pedal-button { background: #444; color: #fff; border-color: #666; }
+body.wheel-amoled .pedal-button { background: #1a1a1a; color: #fff; border-color: #333; }
+
 /* Wheel & Paddles */
 .steering-wheel-wrapper {
   position: relative;

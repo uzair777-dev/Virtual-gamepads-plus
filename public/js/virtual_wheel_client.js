@@ -104,12 +104,11 @@ window.themes = ['light', 'dark', 'amoled'];
     }
   }, 500);
 
-  // --- Sliders ---
-  function initSlider(id) {
-    var container = document.getElementById(id);
+  // --- Pedal Controls (Slider or Button Mode) ---
+  function initSlider(container, axis) {
     var fill = container.querySelector('.slider-fill');
     var track = container.querySelector('.slider-track');
-    var axis = parseInt(container.getAttribute('data-axis'), 16);
+    if (!fill || !track) return;
     var trackingId = null;
 
     function update(clientY) {
@@ -158,9 +157,101 @@ window.themes = ['light', 'dark', 'amoled'];
     });
   }
 
-  initSlider('slider-throttle');
-  initSlider('slider-brake');
-  initSlider('slider-clutch');
+  function initPedalButton(container, axis, sliderConfig) {
+    var btn = document.createElement('div');
+    btn.className = 'pedal-button';
+    btn.textContent = sliderConfig.label || sliderConfig.id.toUpperCase();
+    container.appendChild(btn);
+
+    var animId = null;
+    var pressing = false;
+    var currentValue = 0;
+    var rampStart = 0;
+    var rampFrom = 0;
+    var rampTo = 0;
+    var RAMP_UP_MS = 200;
+    var RAMP_DOWN_MS = 150;
+
+    function sineEase(t) {
+      return (Math.sin((t * Math.PI) - (Math.PI / 2)) + 1) / 2;
+    }
+
+    function animate(timestamp) {
+      if (!rampStart) rampStart = timestamp;
+      var elapsed = timestamp - rampStart;
+      var duration = pressing ? RAMP_UP_MS : RAMP_DOWN_MS;
+      var t = Math.min(1, elapsed / duration);
+      var eased = sineEase(t);
+      currentValue = Math.round(rampFrom + (rampTo - rampFrom) * eased);
+      emit(EV_ABS, axis, currentValue);
+
+      if (t < 1) {
+        animId = requestAnimationFrame(animate);
+      } else {
+        animId = null;
+      }
+    }
+
+    function press(e) {
+      e.preventDefault();
+      btn.classList.add('pressed');
+      if (navigator.vibrate) navigator.vibrate(20);
+      pressing = true;
+      rampFrom = currentValue;
+      rampTo = 255;
+      rampStart = 0;
+      if (animId) cancelAnimationFrame(animId);
+      animId = requestAnimationFrame(animate);
+    }
+
+    function release(e) {
+      e.preventDefault();
+      btn.classList.remove('pressed');
+      pressing = false;
+      rampFrom = currentValue;
+      rampTo = 0;
+      rampStart = 0;
+      if (animId) cancelAnimationFrame(animId);
+      animId = requestAnimationFrame(animate);
+    }
+
+    btn.addEventListener('touchstart', press, { passive: false });
+    btn.addEventListener('touchend', release, { passive: false });
+    btn.addEventListener('touchcancel', release, { passive: false });
+    btn.addEventListener('mousedown', press);
+    btn.addEventListener('mouseup', release);
+    btn.addEventListener('mouseleave', release);
+  }
+
+  function initPedalControls() {
+    var sliders = (currentPreset && currentPreset.sliders) || [
+      { id: 'throttle', axis: '0x01', mode: 'slider' },
+      { id: 'brake', axis: '0x02', mode: 'slider' },
+      { id: 'clutch', axis: '0x05', mode: 'slider' }
+    ];
+
+    sliders.forEach(function(s) {
+      var container = document.getElementById('slider-' + s.id);
+      if (!container) return;
+      var axis = parseInt(s.axis, 16);
+
+      var track = container.querySelector('.slider-track');
+      var oldBtn = container.querySelector('.pedal-button');
+      if (track) track.remove();
+      if (oldBtn) oldBtn.remove();
+
+      if (s.mode === 'button') {
+        initPedalButton(container, axis, s);
+      } else {
+        var trackEl = document.createElement('div');
+        trackEl.className = 'slider-track';
+        trackEl.innerHTML = '<div class="slider-fill" style="background-color:' +
+          (s.id === 'throttle' ? '#4CAF50' : s.id === 'brake' ? '#F44336' : '#2196F3') + ';"></div>';
+        container.appendChild(trackEl);
+        initSlider(container, axis);
+      }
+    });
+  }
 
   // --- Steering Wheel (Rotary Dial) ---
   var wheelKnob = document.getElementById('steering-wheel-knob');
@@ -269,7 +360,13 @@ window.themes = ['light', 'dark', 'amoled'];
 
     var label = document.createElement('div');
     label.className = 'camera-joystick-label';
-    label.textContent = '📷';
+    var labelImg = document.createElement('img');
+    labelImg.src = '/images/icons/rotation.svg';
+    labelImg.style.width = '24px';
+    labelImg.style.height = '24px';
+    labelImg.style.opacity = '0.5';
+    labelImg.style.pointerEvents = 'none';
+    label.appendChild(labelImg);
     zone.appendChild(label);
 
     var updateGeometry = function() {
@@ -407,7 +504,24 @@ window.themes = ['light', 'dark', 'amoled'];
 
     buttons.forEach(function(btnData) {
       var el = document.createElement('div');
-      el.textContent = btnData.label;
+      if (btnData.icon) {
+        var img = document.createElement('img');
+        img.src = '/images/icons/buttons/' + btnData.icon + '.svg';
+        img.style.width = '60%';
+        img.style.height = '60%';
+        img.style.pointerEvents = 'none';
+        el.appendChild(img);
+        if (btnData.label) {
+          var lbl = document.createElement('span');
+          lbl.textContent = btnData.label;
+          lbl.style.fontSize = '0.5rem';
+          lbl.style.marginTop = '2px';
+          el.appendChild(lbl);
+        }
+        el.style.flexDirection = 'column';
+      } else {
+        el.textContent = btnData.label;
+      }
       var isPaddle = btnData.position.indexOf('paddle') !== -1;
       el.className = isPaddle ? 'paddle-btn' : 'wheel-btn';
       
@@ -464,6 +578,7 @@ window.themes = ['light', 'dark', 'amoled'];
       .then(data => {
         currentPreset = data;
         renderButtons(data.buttons || [], data.modules || []);
+        initPedalControls();
         
         var hasClutch = data.sliders && data.sliders.some(s => s.id === 'clutch' && s.visible);
         document.getElementById('slider-clutch').style.display = hasClutch ? 'flex' : 'none';
@@ -498,6 +613,41 @@ window.themes = ['light', 'dark', 'amoled'];
     list.innerHTML = '';
     if(!currentPreset) return;
 
+    // Cache button icons list if needed
+    if (!window._cachedButtonIcons) {
+      fetch('/api/button-icons')
+        .then(r => r.json())
+        .then(icons => {
+          window._cachedButtonIcons = icons;
+          renderEditorList();
+        });
+      return;
+    }
+    var availableIcons = window._cachedButtonIcons || [];
+
+    // Pedal Mode editors (Throttle, Brake, Clutch)
+    var sliders = currentPreset.sliders || [
+      { id: "throttle", label: "Throttle", axis: "0x01", mode: "slider" },
+      { id: "brake", label: "Brake", axis: "0x02", mode: "slider" },
+      { id: "clutch", label: "Clutch", axis: "0x05", mode: "slider" }
+    ];
+    sliders.forEach((s, idx) => {
+      var row = document.createElement('div');
+      row.className = 'edit-btn-row';
+      row.innerHTML = `
+        <label style="font-weight:bold; min-width:80px">🎚 ${s.label || s.id}</label>
+        <select onchange="updateSliderMode(${idx}, this.value)">
+          <option value="slider" ${(s.mode||'slider')==='slider'?'selected':''}>Slider Mode</option>
+          <option value="button" ${s.mode==='button'?'selected':''}>Button Mode (Sine Ramp)</option>
+        </select>
+      `;
+      list.appendChild(row);
+    });
+
+    var pedalSep = document.createElement('hr');
+    list.appendChild(pedalSep);
+
+    // Camera joystick position editor
     var modules = currentPreset.modules || [];
     var camMod = modules.find(function(m) { return m.type === 'camera-joystick'; });
     var camRow = document.createElement('div');
@@ -521,16 +671,23 @@ window.themes = ['light', 'dark', 'amoled'];
     `;
     list.appendChild(camRow);
 
+    // Separator
     var sep = document.createElement('hr');
     list.appendChild(sep);
 
+    // Button editors
     if(!currentPreset.buttons) return;
     
     currentPreset.buttons.forEach((btn, idx) => {
       var row = document.createElement('div');
       row.className = 'edit-btn-row';
+      var iconOptions = availableIcons.map(ic => `<option value="${ic}" ${btn.icon===ic?'selected':''}>${ic}</option>`).join('');
       row.innerHTML = `
-        <input type="text" value="${btn.label}" onchange="updateBtn(${idx}, 'label', this.value)" placeholder="Label">
+        <input type="text" value="${btn.label||''}" onchange="updateBtn(${idx}, 'label', this.value)" placeholder="Label">
+        <select onchange="updateBtn(${idx}, 'icon', this.value)">
+          <option value="" ${!btn.icon?'selected':''}>No Icon (text only)</option>
+          ${iconOptions}
+        </select>
         <select onchange="updateBtn(${idx}, 'code', this.value)">
           <option value="0x120" ${btn.code==='0x120'?'selected':''}>Trigger</option>
           <option value="0x121" ${btn.code==='0x121'?'selected':''}>Thumb</option>
@@ -560,6 +717,22 @@ window.themes = ['light', 'dark', 'amoled'];
       list.appendChild(row);
     });
   }
+
+  window.updateSliderMode = function(idx, mode) {
+    if (currentPreset && currentPreset.sliders && currentPreset.sliders[idx]) {
+      currentPreset.sliders[idx].mode = mode;
+    } else if (currentPreset) {
+      if (!currentPreset.sliders) {
+        currentPreset.sliders = [
+          { id: "throttle", label: "Throttle", axis: "0x01", visible: true, mode: "slider" },
+          { id: "brake", label: "Brake", axis: "0x02", visible: true, mode: "slider" },
+          { id: "clutch", label: "Clutch", axis: "0x05", visible: false, mode: "slider" }
+        ];
+      }
+      if (currentPreset.sliders[idx]) currentPreset.sliders[idx].mode = mode;
+    }
+    initPedalControls();
+  };
 
   window.updateCamJoyPos = function(pos) {
     if (!currentPreset.modules) currentPreset.modules = [];
@@ -640,6 +813,9 @@ window.themes = ['light', 'dark', 'amoled'];
   socket.on('connect', function() {
     socket.emit('connectWheel');
   });
+  if (socket.connected) {
+    socket.emit('connectWheel');
+  }
 
   socket.on('disconnect', function() {
     connected = false;

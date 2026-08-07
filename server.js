@@ -275,6 +275,18 @@ if (config.analog) {
     });
   });
 
+  // GET /api/button-icons — list available SVG icon names (without extension)
+  app.get('/api/button-icons', function(req, res) {
+    var iconsDir = path.join(__dirname, 'public', 'images', 'icons', 'buttons');
+    fs.readdir(iconsDir, function(err, files) {
+      if (err) return res.json([]);
+      var icons = files
+        .filter(function(f) { return f.endsWith('.svg'); })
+        .map(function(f) { return f.replace('.svg', ''); });
+      res.json(icons);
+    });
+  });
+
   // Socket.IO connection management
   io.on('connection', function(socket) {
     // Initialize arrays for multi-controller tracking per socket
@@ -428,20 +440,6 @@ socket.on('connectWheel', function() {
  return log('warning', ' connectWheel: failed');
  }
 });
-});
-
-// Manage Wheel (No Clutch) connection
-socket.on('connectWheelNoClutch', function() {
- return wh_hub.connectWheelNoClutch(function(gamePadId) {
- var ledBitField = config.ledBitFieldSequence[gamePadId];
- if (gamePadId !== -1) {
- log('info', ' connectWheelNoClutch: success (slot ' + gamePadId + ')');
- socket.wheelIds.push(gamePadId);
- return socket.emit('wheelConnected', { padId: gamePadId, ledBitField: ledBitField, hasClutch: false });
- } else {
- return log('warning', ' connectWheelNoClutch: failed');
- }
- });
 });
 
     // Manage Wheel events
