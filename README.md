@@ -1,5 +1,7 @@
 # Virtual Gamepad Plus
 
+![Virtual gamepad](https://github.com/uzair777-dev/Virtual-gamepads-plus/blob/main/public/branding/github_banner.png?raw=true)
+
 This repo is a fork of [alr86/node-virtual-gamepads-revived](https://github.com/alr86/node-virtual-gamepads-revived) (which is a fork of [node-virtual-gamepads](https://github.com/jehervy/node-virtual-gamepads)) with ~~some~~ Many changes(just tested in linux, and will only ):
 
 - Shows QR-Code to join 
@@ -78,7 +80,7 @@ Usage
 The application will plug automatically a new controller when the web application is launched and unplug it at disconnection.
 4 slots are available so 4 virtual gamepads can be created. You can see your current slot on the indicator directly on the vitual gamepad.
 
-![Virtual gamepad](https://github.com/miroof/node-virtual-gamepads/blob/resources/screenshots/standalone.png?raw=true)
+![Virtual gamepad](https://github.com/uzair777-dev/Virtual-gamepads-plus/blob/main/public/images/screenshot.jpg?raw=true)
 
 ### Enjoy haptic feedbacks
 Because it's difficult to spot the right place in a touch screen without looking at it,
