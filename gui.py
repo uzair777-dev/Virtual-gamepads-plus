@@ -158,6 +158,18 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.debug_toggle.connect("toggled", self.on_debug_toggled)
         chk_box.pack_start(self.debug_toggle, False, False, 0)
 
+        # Custom Port Entry
+        port_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        port_label = Gtk.Label(label="Server Port:")
+        self.port_entry = Gtk.Entry()
+        self.port_entry.set_placeholder_text("Default (8443)")
+        if self.config.get('custom_port'):
+            self.port_entry.set_text(str(self.config['custom_port']))
+        self.port_entry.connect("changed", self.on_port_changed)
+        port_box.pack_start(port_label, False, False, 0)
+        port_box.pack_start(self.port_entry, True, True, 0)
+        chk_box.pack_start(port_box, False, False, 2)
+
         # Log Output
         scrolled_window = Gtk.ScrolledWindow()
         scrolled_window.set_hexpand(True)
@@ -184,7 +196,7 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.connect("delete-event", self.on_delete_event)
         
     def load_config(self):
-        self.config = {'minimise_to_tray': False, 'hot_reload': False, 'debug': False}
+        self.config = {'minimise_to_tray': False, 'hot_reload': False, 'debug': False, 'custom_port': ''}
         if os.path.exists(CONFIG_FILE):
             try:
                 with open(CONFIG_FILE, 'r') as f:
@@ -212,6 +224,11 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.config['debug'] = button.get_active()
         self.save_config()
 
+    def on_port_changed(self, entry):
+        val = entry.get_text().strip()
+        self.config['custom_port'] = val
+        self.save_config()
+
     def update_status_label(self, running):
         if running:
             self.status_label.set_markup("<span foreground='green'>Status: ● Running</span>")
@@ -228,6 +245,11 @@ class VirtualGamepadsGUI(Gtk.Window):
     def check_and_prompt_occupied_ports(self):
         """Checking if target server ports are bound by external processes and prompt user to kill them with sudo/pkexec."""
         target_ports = [8443, 8080, 8000, 3000, 8081]
+        custom_val = self.port_entry.get_text().strip() if hasattr(self, 'port_entry') else ''
+        if custom_val.isdigit():
+            c_port = int(custom_val)
+            if c_port not in target_ports:
+                target_ports.insert(0, c_port)
         occupied = []
 
         for p in target_ports:
@@ -301,6 +323,10 @@ class VirtualGamepadsGUI(Gtk.Window):
             cmd.append('--hot-reload')
         if self.debug_toggle.get_active():
             cmd.append('--debug')
+        
+        custom_port_val = self.port_entry.get_text().strip() if hasattr(self, 'port_entry') else ''
+        if custom_port_val:
+            cmd.append(f'--port={custom_port_val}')
         
         self.last_cmd = cmd
 
