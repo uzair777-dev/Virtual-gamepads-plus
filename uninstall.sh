@@ -2,11 +2,6 @@
 # ==============================================================================
 # Virtual Gamepads Plus — Uninstaller Script
 # Repo: https://github.com/uzair777-dev/Virtual-gamepads-plus
-#
-# Usage:
-#   vgp --uninstall
-#   bash uninstall.sh
-#   curl -fsSL <raw-url>/uninstall.sh | bash
 # ==============================================================================
 
 set -e
@@ -18,41 +13,52 @@ ICON_FILE="$HOME/.local/share/icons/hicolor/256x256/apps/virtual-gamepads-plus.p
 UDEV_RULE="/etc/udev/rules.d/99-uinput.rules"
 CONFIG_FILE="$HOME/.config/virtual-gamepads-gui.json"
 
-echo "=================================================="
-echo "   Virtual Gamepads Plus — Uninstaller            "
-echo "=================================================="
+# Formatting helper (ANSI colors when running interactively in terminal)
+if [ -t 1 ]; then
+    BOLD="\033[1m"
+    GREEN="\033[1;32m"
+    YELLOW="\033[1;33m"
+    BLUE="\033[1;34m"
+    RESET="\033[0m"
+else
+    BOLD=""
+    GREEN=""
+    YELLOW=""
+    BLUE=""
+    RESET=""
+fi
+
+echo -e "${BOLD}Virtual Gamepads Plus Uninstaller${RESET}"
 echo ""
 
-# Confirm
+# Confirm uninstallation
 confirm="n"
 if [ -t 0 ] || [ -c /dev/tty ]; then
     read -p "Are you sure you want to uninstall Virtual Gamepads Plus? [y/N] " confirm < /dev/tty || confirm="n"
 fi
 
 if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-    echo "Uninstall cancelled."
+    echo "Cancelled."
     exit 0
 fi
 
 echo ""
 
-# 1. Kill any running server processes
-echo "[1/5] Stopping any running instances..."
+# 1. Stop any running server or GUI instances
+echo -e "${BLUE}==>${RESET} ${BOLD}Stopping running server instances...${RESET}"
 pkill -f "node.*server.js" 2>/dev/null || true
 pkill -f "python3.*gui.py" 2>/dev/null || true
 sleep 1
 
 # 2. Remove application directory
-echo "[2/5] Removing application files..."
+echo -e "${BLUE}==>${RESET} ${BOLD}Removing application directory...${RESET}"
 if [ -d "$INSTALL_DIR" ]; then
     rm -rf "$INSTALL_DIR"
     echo "  Removed $INSTALL_DIR"
-else
-    echo "  $INSTALL_DIR not found (skipped)"
 fi
 
-# 3. Remove CLI wrapper, desktop entry, icon
-echo "[3/5] Removing CLI command & desktop launcher..."
+# 3. Remove CLI launcher executable, desktop entry, and icon
+echo -e "${BLUE}==>${RESET} ${BOLD}Removing launcher & desktop integrations...${RESET}"
 if [ -f "$CLI_WRAPPER" ]; then
     rm -f "$CLI_WRAPPER"
     echo "  Removed $CLI_WRAPPER"
@@ -70,18 +76,18 @@ if [ -f "$ICON_FILE" ]; then
     gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
 fi
 
-# Clean up PATH export lines from shell config files
+# Clean up PATH export lines from shell config files (~/.bashrc, ~/.zshrc)
 for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
     if [ -f "$rc" ]; then
         sed -i '\|\.local/bin|d' "$rc" 2>/dev/null || true
     fi
 done
 
-# 4. Ask about system-level cleanup (udev rule, firewall)
-echo "[4/5] System-level cleanup..."
+# 4. Optional system-level cleanup (udev rule and firewall authorizations)
+echo -e "${BLUE}==>${RESET} ${BOLD}System cleanup...${RESET}"
 remove_system="n"
 if [ -t 0 ] || [ -c /dev/tty ]; then
-    read -p "  Remove udev rule and firewall port authorizations? (requires sudo) [y/N] " remove_system < /dev/tty || remove_system="n"
+    read -p "Remove udev rule and firewall authorizations? (sudo) [y/N] " remove_system < /dev/tty || remove_system="n"
 fi
 
 if [[ "$remove_system" =~ ^[Yy]$ ]]; then
@@ -92,24 +98,22 @@ if [[ "$remove_system" =~ ^[Yy]$ ]]; then
         echo "  Removed $UDEV_RULE"
     fi
 
-    # Revoke firewall ports
     if command -v firewall-cmd &>/dev/null; then
         sudo firewall-cmd --permanent --remove-port=8080/tcp >/dev/null 2>&1 || true
         sudo firewall-cmd --permanent --remove-port=80/tcp >/dev/null 2>&1 || true
         sudo firewall-cmd --reload >/dev/null 2>&1 || true
-        echo "  Revoked firewall ports 8080/tcp and 80/tcp (firewalld)"
+        echo "  Revoked firewall ports (firewalld)"
     elif command -v ufw &>/dev/null; then
         sudo ufw delete allow 8080/tcp >/dev/null 2>&1 || true
         sudo ufw delete allow 80/tcp >/dev/null 2>&1 || true
-        echo "  Revoked firewall ports 8080/tcp and 80/tcp (ufw)"
+        echo "  Revoked firewall ports (ufw)"
     fi
 fi
 
-# 5. Ask about config removal
-echo "[5/5] Configuration cleanup..."
+# 5. Optional GUI configuration file removal
 remove_config="n"
 if [ -t 0 ] || [ -c /dev/tty ]; then
-    read -p "  Remove saved GUI settings ($CONFIG_FILE)? [y/N] " remove_config < /dev/tty || remove_config="n"
+    read -p "Remove saved GUI configuration ($CONFIG_FILE)? [y/N] " remove_config < /dev/tty || remove_config="n"
 fi
 
 if [[ "$remove_config" =~ ^[Yy]$ ]]; then
@@ -118,10 +122,4 @@ if [[ "$remove_config" =~ ^[Yy]$ ]]; then
 fi
 
 echo ""
-echo "=================================================="
-echo "   ✓ Virtual Gamepads Plus Uninstalled            "
-echo "=================================================="
-echo ""
-echo "Note: System packages (node, npm, python3, etc.)"
-echo "were NOT removed. Remove them manually if desired."
-echo "=================================================="
+echo -e "${GREEN}${BOLD}Virtual Gamepads Plus uninstalled.${RESET}"
