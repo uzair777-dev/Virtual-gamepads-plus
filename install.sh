@@ -16,7 +16,8 @@ for arg in "$@"; do
 done
 
 REPO_URL="https://github.com/uzair777-dev/Virtual-gamepads-plus.git"
-TARGET_DIR="Virtual-gamepads-plus"
+INSTALL_TARGET_DIR="$HOME/.local/share/virtual-gamepads-plus"
+NEEDS_RELOGIN=0
 
 echo "=================================================="
 echo "   Virtual Gamepads Plus — Automated Installer    "
@@ -29,6 +30,28 @@ echo ""
 if [ "$(uname -s)" != "Linux" ]; then
     echo "Error: This installer supports Linux systems only."
     exit 1
+fi
+
+# Check for existing installation and prompt for update
+if [ -d "$INSTALL_TARGET_DIR/node_modules" ] && [ -f "$INSTALL_TARGET_DIR/server.js" ]; then
+    echo "Virtual Gamepads Plus is already installed at:"
+    echo "  $INSTALL_TARGET_DIR"
+    echo ""
+    update_ans="u"
+    if [ -t 0 ] || [ -c /dev/tty ]; then
+        read -p "Would you like to [U]pdate, [R]einstall, or [C]ancel? [U/r/c] " update_ans < /dev/tty || update_ans="u"
+    fi
+    update_ans=${update_ans:-u}
+
+    if [[ "$update_ans" =~ ^[Cc]$ ]]; then
+        echo "Installation cancelled."
+        exit 0
+    elif [[ "$update_ans" =~ ^[Rr]$ ]]; then
+        echo "Reinstalling (removing old installation)..."
+        rm -rf "$INSTALL_TARGET_DIR"
+    else
+        echo "Updating existing installation..."
+    fi
 fi
 
 IS_ATOMIC=0
@@ -64,7 +87,7 @@ if [ $IS_NIX -eq 0 ] && [ $IS_VOID_MUSL -eq 0 ]; then
 fi
 
 detect_and_install_deps() {
-    echo "[1/4] Checking environment & package managers..."
+    echo "[1/5] Checking environment & package managers..."
     if [ $DEBUG_MODE -eq 1 ]; then
         echo "[DEBUG] Environment flags: IS_VOID=$IS_VOID, IS_VOID_MUSL=$IS_VOID_MUSL, IS_NIX=$IS_NIX, IS_ATOMIC=$IS_ATOMIC"
     fi
@@ -230,12 +253,12 @@ detect_and_install_deps() {
 detect_and_install_deps
 
 # Repository & Application Directory setup
-INSTALL_TARGET_DIR="$HOME/.local/share/virtual-gamepads-plus"
 echo "[2/5] Installing application files to $INSTALL_TARGET_DIR..."
 
 if [ -d ".git" ] && [ "$(pwd)" != "$INSTALL_TARGET_DIR" ]; then
     echo "Syncing code from $(pwd) to $INSTALL_TARGET_DIR..."
     mkdir -p "$INSTALL_TARGET_DIR"
+    rsync -a --exclude='node_modules' --exclude='.git' . "$INSTALL_TARGET_DIR/" 2>/dev/null || \
     cp -rf . "$INSTALL_TARGET_DIR/" 2>/dev/null || true
     cd "$INSTALL_TARGET_DIR"
 elif [ -d ".git" ]; then
@@ -258,11 +281,14 @@ npm install
 npm rebuild
 
 echo "[4/5] Pre-authorizing uinput & firewall permissions via sudo..."
-if [ -f "./setup-permissions.sh" ]; then
-    chmod +x ./setup-permissions.sh
+
+# Check if user was already in input group BEFORE adding
+WAS_IN_INPUT_GROUP=0
+if id -nG "$USER" 2>/dev/null | grep -qw "input"; then
+    WAS_IN_INPUT_GROUP=1
 fi
 
-# 1. uinput Group & Udev Rule
+# uinput Group & Udev Rule
 sudo usermod -aG input "$USER" 2>/dev/null || true
 RULE='KERNEL=="uinput", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"'
 echo "$RULE" | sudo tee /etc/udev/rules.d/99-uinput.rules > /dev/null 2>&1 || true
@@ -270,13 +296,18 @@ sudo udevadm control --reload-rules 2>/dev/null || true
 sudo udevadm trigger 2>/dev/null || true
 sudo chmod 666 /dev/uinput 2>/dev/null || true
 
+# Flag re-login notice if user was newly added to input group
+if [ $WAS_IN_INPUT_GROUP -eq 0 ]; then
+    NEEDS_RELOGIN=1
+fi
+
 # SSL Cert Ownership Fix (if root previously created key.pem)
 mkdir -p ssl
 sudo chown -R "$USER:$USER" ssl 2>/dev/null || true
-chmod 777 ssl 2>/dev/null || true
-chmod 666 ssl/* 2>/dev/null || true
+chmod 755 ssl 2>/dev/null || true
+chmod 644 ssl/* 2>/dev/null || true
 
-# 2. Permanent Firewall Port Authorization (8080/80)
+# Permanent Firewall Port Authorization (8080/80)
 if command -v firewall-cmd &>/dev/null; then
     sudo firewall-cmd --permanent --add-port=8080/tcp >/dev/null 2>&1 || true
     sudo firewall-cmd --permanent --add-port=80/tcp >/dev/null 2>&1 || true
@@ -289,22 +320,33 @@ elif command -v iptables &>/dev/null; then
     sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT >/dev/null 2>&1 || true
 fi
 
-# 3. Grant low-port capability to Node.js binary if setcap is available
+# Grant low-port capability to Node.js binary if setcap is available
 if command -v setcap &>/dev/null && command -v node &>/dev/null; then
     NODE_BIN="$(readlink -f $(which node) 2>/dev/null || which node)"
     sudo setcap 'cap_net_bind_service=+ep' "$NODE_BIN" 2>/dev/null || true
 fi
 
-# 5. CLI Alias & Desktop Application Launcher
+# CLI Alias & Desktop Application Launcher
 echo "[5/5] Creating 'vgp' CLI command & Desktop Application Launcher..."
 PROJECT_ABS_DIR="$(pwd)"
 
-# CLI Wrapper ~/.local/bin/vgp
+# CLI Wrapper ~/.local/bin/vgp (with --uninstall support)
 mkdir -p "$HOME/.local/bin"
-cat << EOF > "$HOME/.local/bin/vgp"
+cat << 'WRAPPER_EOF' > "$HOME/.local/bin/vgp"
 #!/bin/bash
-exec "$PROJECT_ABS_DIR/run.sh" "\$@"
-EOF
+INSTALL_DIR="$HOME/.local/share/virtual-gamepads-plus"
+
+if [ "$1" == "--uninstall" ]; then
+    if [ -f "$INSTALL_DIR/uninstall.sh" ]; then
+        exec bash "$INSTALL_DIR/uninstall.sh"
+    else
+        echo "Error: Uninstall script not found at $INSTALL_DIR/uninstall.sh"
+        exit 1
+    fi
+fi
+
+exec "$INSTALL_DIR/run.sh" "$@"
+WRAPPER_EOF
 chmod +x "$HOME/.local/bin/vgp"
 
 # Ensure ~/.local/bin is in PATH for bash/zsh if not already present
@@ -348,4 +390,16 @@ echo "To launch:"
 echo "  vgp                 (CLI mode from anywhere)"
 echo "  python3 gui.py      (GUI Manager)"
 echo "  Or click 'Virtual Gamepads Plus' in your App Launcher!"
+echo ""
+echo "To uninstall:"
+echo "  vgp --uninstall"
 echo "=================================================="
+
+if [ $NEEDS_RELOGIN -eq 1 ]; then
+    echo ""
+    echo "⚠  IMPORTANT: You were added to the 'input' group."
+    echo "   You must LOG OUT and LOG BACK IN (or reboot) for"
+    echo "   /dev/uinput permissions to take effect."
+    echo "   Until then, the server may require sudo to access gamepads."
+    echo ""
+fi
