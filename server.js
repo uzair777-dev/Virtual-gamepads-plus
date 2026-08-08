@@ -619,97 +619,109 @@ socket.on('connectWheel', function() {
     });
   });
 
-// Try ports sequentially with fallback support
-// Use the original `server` (which has Socket.IO attached) for the first attempt.
-// For fallback ports, create a new HTTPS server and re-attach Socket.IO to it.
-var tryPort = function(ports, index) {
- if (index >= ports.length || index >= maxTries) {
- log('error', 'No available ports found after ' + maxTries + ' attempts');
- process.exit(1);
- }
- var attemptPort = ports[index];
- // Use the original server (with Socket.IO already attached) for the first try.
- // For subsequent tries, create a new server and re-attach Socket.IO.
- var listenServer;
- if (index === 0) {
-  listenServer = server;
- } else {
-  listenServer = https.createServer(options, app);
-  // Re-attach Socket.IO to the new server
-  io.attach(listenServer);
- }
- listenServer.on('error', function(err) {
- if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
-  log('info', 'Port ' + attemptPort + ' unavailable, trying next...');
-  listenServer.removeAllListeners();
-  tryPort(ports, index + 1);
- } else {
-  log('error', 'Server error on port ' + attemptPort + ': ' + err.message);
-  listenServer.removeAllListeners();
-  tryPort(ports, index + 1);
- }
- });
- listenServer.on('listening', function() {
- server = listenServer;
- port = attemptPort;
- log('info', '󰌗 Listening on ' + port);
- // Dump full server address and network info
- var addr = listenServer.address();
- log('debug', '[LISTEN] Server address: ' + JSON.stringify(addr));
- log('debug', '[LISTEN] Server bound to: ' + addr.address + ':' + addr.port + ' (' + addr.family + ')');
- // Dump all network interfaces
- var _os = require('os');
- var _ifaces = _os.networkInterfaces();
- Object.keys(_ifaces).forEach(function(ifname) {
-   _ifaces[ifname].forEach(function(iface) {
-     log('debug', '[LISTEN] Network interface: ' + ifname + ' | ' + iface.family + ' ' + iface.address + (iface.internal ? ' (internal)' : ' (external)'));
-   });
- });
- var uptime = ((Date.now() - _startTime) / 1000).toFixed(1);
- log('info', '[LISTEN] Server fully ready in ' + uptime + 's');
- log('info', '[LISTEN] Accepting connections on https://0.0.0.0:' + port);
- });
- log('debug', '[PORT] Attempting to bind port ' + attemptPort + '...');
- listenServer.listen(attemptPort, '0.0.0.0');
+// Function to start HTTP -> HTTPS redirect server after main HTTPS server is listening
+var startHttpRedirectServer = function(httpsPort) {
+  var http = require('http');
+  var httpPort = 80;
+  
+  var redirectApp = http.createServer(function(req, res) {
+    var host = req.headers.host || '';
+    var hostname = host.replace(/:\d+$/, '');
+    var httpsUrl = 'https://' + hostname + ':' + httpsPort + req.url;
+    log('info', '[HTTP→HTTPS] Redirecting ' + req.socket.remoteAddress + ' from http://' + host + req.url + ' → ' + httpsUrl);
+    res.writeHead(301, { 'Location': httpsUrl });
+    res.end('Redirecting to ' + httpsUrl);
+  });
+
+  redirectApp.on('error', function(err) {
+    if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
+      if (httpPort === 80) {
+        // Try fallback HTTP port 8008 (avoiding 8080 which might be used by main HTTPS server)
+        httpPort = 8008;
+        if (httpPort !== httpsPort) {
+          log('info', '[HTTP→HTTPS] Port 80 unavailable, trying fallback port 8008 for HTTP redirect...');
+          try { redirectApp.listen(8008, '0.0.0.0'); } catch(e) {}
+        }
+      } else {
+        log('info', '[HTTP→HTTPS] Could not start HTTP redirect server. Users must type https:// manually.');
+      }
+    }
+  });
+
+  redirectApp.on('listening', function() {
+    log('info', '[HTTP→HTTPS] Redirect server active on port ' + httpPort + ' -> https://:' + httpsPort);
+  });
+
+  try {
+    redirectApp.listen(80, '0.0.0.0');
+  } catch(e) {}
+};
+
+// Try ports sequentially for main HTTPS server with EADDRINUSE retry backoff
+var tryPort = function(ports, index, retries) {
+  if (retries === undefined) retries = 0;
+  var maxRetriesPerPort = 3;
+
+  if (index >= ports.length || index >= maxTries) {
+    log('error', 'No available ports found after ' + maxTries + ' attempts');
+    process.exit(1);
+  }
+
+  var attemptPort = ports[index];
+  var listenServer;
+
+  if (index === 0 && retries === 0) {
+    listenServer = server;
+  } else {
+    listenServer = https.createServer(options, app);
+    io.attach(listenServer);
+  }
+
+  var errorHandler = function(err) {
+    listenServer.removeListener('listening', listeningHandler);
+    try { listenServer.close(); } catch(e) {}
+
+    if (err.code === 'EADDRINUSE' && retries < maxRetriesPerPort) {
+      log('info', 'Port ' + attemptPort + ' busy (EADDRINUSE), retrying in 300ms (' + (retries + 1) + '/' + maxRetriesPerPort + ')...');
+      setTimeout(function() {
+        tryPort(ports, index, retries + 1);
+      }, 300);
+    } else {
+      log('info', 'Port ' + attemptPort + ' unavailable (' + err.code + '), trying next port...');
+      setTimeout(function() {
+        tryPort(ports, index + 1, 0);
+      }, 200);
+    }
+  };
+
+  var listeningHandler = function() {
+    listenServer.removeListener('error', errorHandler);
+    server = listenServer;
+    port = attemptPort;
+    log('info', 'Listening on port ' + port);
+    
+    var addr = listenServer.address();
+    log('debug', '[LISTEN] Bound to ' + addr.address + ':' + addr.port);
+    
+    var uptime = ((Date.now() - _startTime) / 1000).toFixed(1);
+    log('info', '[LISTEN] Server ready in ' + uptime + 's on https://0.0.0.0:' + port);
+    
+    // Start HTTP redirect server safely after HTTPS server is bound
+    startHttpRedirectServer(port);
+  };
+
+  listenServer.once('error', errorHandler);
+  listenServer.once('listening', listeningHandler);
+
+  log('debug', '[PORT] Attempting to bind HTTPS on port ' + attemptPort + ' (attempt ' + (retries + 1) + ')...');
+  try {
+    listenServer.listen(attemptPort, '0.0.0.0');
+  } catch(e) {
+    errorHandler(e);
+  }
 };
 
 // Start trying ports
-tryPort(allPorts, 0);
-
-// ========== HTTP → HTTPS REDIRECT SERVER ==========
-// When users type just an IP address, phones default to http://
-// This server catches those plain HTTP requests and redirects to https://
-var http = require('http');
-var httpRedirectPort = 80;
-
-var redirectApp = http.createServer(function(req, res) {
-  var host = req.headers.host || '';
-  // Strip any existing port from the host header
-  var hostname = host.replace(/:\d+$/, '');
-  var httpsUrl = 'https://' + hostname + ':' + (port || primaryPort) + req.url;
-  log('info', '[HTTP→HTTPS] Redirecting ' + req.socket.remoteAddress + ' from http://' + host + req.url + ' → ' + httpsUrl);
-  res.writeHead(301, { 'Location': httpsUrl });
-  res.end('Redirecting to ' + httpsUrl);
-});
-
-redirectApp.on('error', function(err) {
-  if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
-    if (httpRedirectPort === 80) {
-      httpRedirectPort = 8080;
-      log('info', '[HTTP→HTTPS] Port 80 unavailable, trying port 8080 for HTTP redirect...');
-      redirectApp.listen(8080, '0.0.0.0');
-    } else {
-      log('info', '[HTTP→HTTPS] Could not start HTTP redirect server (port ' + httpRedirectPort + ' unavailable). Users must type https:// manually.');
-    }
-  }
-});
-
-redirectApp.on('listening', function() {
-  log('info', '[HTTP→HTTPS] HTTP redirect server listening on port ' + httpRedirectPort);
-  log('info', '[HTTP→HTTPS] Users can now type http://<ip>:' + httpRedirectPort + ' and will be auto-redirected to HTTPS');
-});
-
-redirectApp.listen(httpRedirectPort, '0.0.0.0');
-// ========== END HTTP REDIRECT ==========
+tryPort(allPorts, 0, 0);
 
 }).call(this);

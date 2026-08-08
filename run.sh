@@ -74,9 +74,9 @@ mkdir -p "$SCRIPT_DIR/ssl"
 
 # Ensure presets directory exists and has correct permissions
 mkdir -p "$SCRIPT_DIR/presets/wheel"
-chmod -R 755 "$SCRIPT_DIR/presets"
+chmod -R 755 "$SCRIPT_DIR/presets" 2>/dev/null || true
 
-PORT=$(node -e "console.log(require('./config.json').port)" 2>/dev/null || echo "80")
+PORT=$(node -e "console.log(require('./config.json').port)" 2>/dev/null || echo "8443")
 
 if [ -n "$GUI_MODE" ]; then
     echo "GUI_IP=$IP_ADDRESS"
@@ -89,8 +89,26 @@ else
     echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
 fi
 
-# Ensure user's own processes on port are stopped before starting
+# Interactive port cleanup prompt for CLI mode
+if [ -z "$GUI_MODE" ] && [ -t 0 ] && command -v ss &>/dev/null; then
+    if ss -tulpn | grep -qE ":8443 |:8080 "; then
+        echo -e "\033[1;33m==> Notice:\033[0m Target server port (8443/8080) is currently in use."
+        read -p "Would you like to terminate stuck processes using sudo to free up ports? [Y/n] " prompt_ans
+        if [[ "$prompt_ans" =~ ^[Yy]$ || -z "$prompt_ans" ]]; then
+            sudo fuser -k -9 8443/tcp 8080/tcp 8000/tcp 3000/tcp 8081/tcp 2>/dev/null || true
+            echo -e "\033[1;32m==>\033[0m Network ports released successfully."
+            sleep 0.4
+        fi
+    fi
+fi
+
+# Ensure user's own processes on server ports are stopped before starting
 if command -v fuser &>/dev/null; then
+    fuser -k -s 8443/tcp &>/dev/null || true
+    fuser -k -s 8080/tcp &>/dev/null || true
+    fuser -k -s 8000/tcp &>/dev/null || true
+    fuser -k -s 3000/tcp &>/dev/null || true
+    fuser -k -s 8081/tcp &>/dev/null || true
     fuser -k -s ${PORT}/tcp &>/dev/null || true
 fi
 
@@ -106,22 +124,27 @@ cleanup() {
     # Only touch firewall ports on cleanup if we modified them and have non-interactive sudo
     if [ $CAN_SUDO_NONINTERACTIVE -eq 1 ]; then
         if command -v firewall-cmd &>/dev/null; then
-            sudo firewall-cmd --remove-port=$PORT/tcp > /dev/null 2>&1 || true
-            sudo firewall-cmd --remove-port=80/tcp > /dev/null 2>&1 || true
+            sudo firewall-cmd --remove-port=8443/tcp > /dev/null 2>&1 || true
             sudo firewall-cmd --remove-port=8080/tcp > /dev/null 2>&1 || true
+            sudo firewall-cmd --remove-port=80/tcp > /dev/null 2>&1 || true
+            sudo firewall-cmd --remove-port=$PORT/tcp > /dev/null 2>&1 || true
         elif command -v ufw &>/dev/null; then
-            sudo ufw delete allow $PORT/tcp > /dev/null 2>&1 || true
-            sudo ufw delete allow 80/tcp > /dev/null 2>&1 || true
+            sudo ufw delete allow 8443/tcp > /dev/null 2>&1 || true
             sudo ufw delete allow 8080/tcp > /dev/null 2>&1 || true
+            sudo ufw delete allow 80/tcp > /dev/null 2>&1 || true
+            sudo ufw delete allow $PORT/tcp > /dev/null 2>&1 || true
         elif command -v iptables &>/dev/null; then
-            sudo iptables -D INPUT -p tcp --dport $PORT -j ACCEPT > /dev/null 2>&1 || true
-            sudo iptables -D INPUT -p tcp --dport 80 -j ACCEPT > /dev/null 2>&1 || true
+            sudo iptables -D INPUT -p tcp --dport 8443 -j ACCEPT > /dev/null 2>&1 || true
             sudo iptables -D INPUT -p tcp --dport 8080 -j ACCEPT > /dev/null 2>&1 || true
+            sudo iptables -D INPUT -p tcp --dport 80 -j ACCEPT > /dev/null 2>&1 || true
+            sudo iptables -D INPUT -p tcp --dport $PORT -j ACCEPT > /dev/null 2>&1 || true
         fi
     fi
     
-    # Kill remaining user processes on port
+    # Kill remaining user processes on ports
     if command -v fuser &>/dev/null; then
+        fuser -k -s 8443/tcp &>/dev/null || true
+        fuser -k -s 8080/tcp &>/dev/null || true
         fuser -k -s ${PORT}/tcp &>/dev/null || true
     fi
 }
@@ -131,17 +154,20 @@ trap cleanup EXIT INT TERM HUP
 # Dynamically authorize firewall ports ONLY if we have non-interactive sudo access
 if [ $CAN_SUDO_NONINTERACTIVE -eq 1 ]; then
     if command -v firewall-cmd &>/dev/null; then
-        sudo firewall-cmd --add-port=$PORT/tcp > /dev/null 2>&1 || true
-        sudo firewall-cmd --add-port=80/tcp > /dev/null 2>&1 || true
+        sudo firewall-cmd --add-port=8443/tcp > /dev/null 2>&1 || true
         sudo firewall-cmd --add-port=8080/tcp > /dev/null 2>&1 || true
+        sudo firewall-cmd --add-port=80/tcp > /dev/null 2>&1 || true
+        sudo firewall-cmd --add-port=$PORT/tcp > /dev/null 2>&1 || true
     elif command -v ufw &>/dev/null; then
-        sudo ufw allow $PORT/tcp > /dev/null 2>&1 || true
-        sudo ufw allow 80/tcp > /dev/null 2>&1 || true
+        sudo ufw allow 8443/tcp > /dev/null 2>&1 || true
         sudo ufw allow 8080/tcp > /dev/null 2>&1 || true
+        sudo ufw allow 80/tcp > /dev/null 2>&1 || true
+        sudo ufw allow $PORT/tcp > /dev/null 2>&1 || true
     elif command -v iptables &>/dev/null; then
-        sudo iptables -A INPUT -p tcp --dport $PORT -j ACCEPT > /dev/null 2>&1 || true
-        sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT > /dev/null 2>&1 || true
+        sudo iptables -A INPUT -p tcp --dport 8443 -j ACCEPT > /dev/null 2>&1 || true
         sudo iptables -A INPUT -p tcp --dport 8080 -j ACCEPT > /dev/null 2>&1 || true
+        sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT > /dev/null 2>&1 || true
+        sudo iptables -A INPUT -p tcp --dport $PORT -j ACCEPT > /dev/null 2>&1 || true
     elif grep -qE "ID=void|ID_LIKE=void" /etc/os-release 2>/dev/null || command -v xbps-install &>/dev/null; then
         if [ -z "$GUI_MODE" ]; then
             echo "Void Linux detected. Void Linux does not ship with a default active firewall."

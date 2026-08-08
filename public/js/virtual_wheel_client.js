@@ -54,6 +54,15 @@ window.themes = ['light', 'dark', 'amoled'];
     }
   };
 
+  window.updatePedalRampVisibility = function(id) {
+    var modeEl = document.getElementById('mode-' + id);
+    var container = document.getElementById('container-ramp-' + id);
+    if (modeEl && container) {
+      var mode = modeEl.value;
+      container.style.display = (mode === 'button' || mode === 'scurve') ? 'inline-flex' : 'none';
+    }
+  };
+
   window.toggleDarkMode = function() {
     document.body.classList.toggle('wheel-dark');
   };
@@ -110,6 +119,7 @@ window.themes = ['light', 'dark', 'amoled'];
     var track = container.querySelector('.slider-track');
     if (!fill || !track) return;
     var trackingId = null;
+    var isMouseDown = false;
 
     function update(clientY) {
       var rect = track.getBoundingClientRect();
@@ -139,6 +149,7 @@ window.themes = ['light', 'dark', 'amoled'];
 
     function release() {
       trackingId = null;
+      isMouseDown = false;
       fill.style.height = '0%';
       emit(EV_ABS, axis, 0);
     }
@@ -155,6 +166,19 @@ window.themes = ['light', 'dark', 'amoled'];
         if (e.changedTouches[i].identifier === trackingId) release();
       }
     });
+
+    // Mouse drag support for desktop testing
+    container.addEventListener('mousedown', function(e) {
+      if (e.button !== 0) return;
+      isMouseDown = true;
+      update(e.clientY);
+    });
+    window.addEventListener('mousemove', function(e) {
+      if (isMouseDown) update(e.clientY);
+    });
+    window.addEventListener('mouseup', function(e) {
+      if (isMouseDown) release();
+    });
   }
 
   function initPedalButton(container, axis, sliderConfig) {
@@ -163,25 +187,34 @@ window.themes = ['light', 'dark', 'amoled'];
     btn.textContent = sliderConfig.label || sliderConfig.id.toUpperCase();
     container.appendChild(btn);
 
+    var isInstant = (sliderConfig.mode === 'instant');
+    var active = false;
     var animId = null;
-    var pressing = false;
     var currentValue = 0;
     var rampStart = 0;
     var rampFrom = 0;
     var rampTo = 0;
-    var RAMP_UP_MS = 200;
-    var RAMP_DOWN_MS = 150;
 
-    function sineEase(t) {
-      return (Math.sin((t * Math.PI) - (Math.PI / 2)) + 1) / 2;
+    // Custom S-Curve ramp time in seconds (e.g. 0.5s = 500ms, 1.0s = 1000ms)
+    var rampSec = (sliderConfig.rampTime !== undefined && sliderConfig.rampTime !== null) ? parseFloat(sliderConfig.rampTime) : 0.5;
+    if (isNaN(rampSec) || rampSec <= 0) rampSec = 0.5;
+
+    var RAMP_UP_MS = Math.round(rampSec * 1000);
+    var RAMP_DOWN_MS = Math.round(RAMP_UP_MS * 0.7);
+
+    // Smoothstep Cubic S-Curve: 3t^2 - 2t^3
+    function sCurveEase(t) {
+      t = Math.max(0, Math.min(1, t));
+      return t * t * (3 - 2 * t);
     }
 
     function animate(timestamp) {
       if (!rampStart) rampStart = timestamp;
       var elapsed = timestamp - rampStart;
-      var duration = pressing ? RAMP_UP_MS : RAMP_DOWN_MS;
+      var duration = active ? RAMP_UP_MS : RAMP_DOWN_MS;
       var t = Math.min(1, elapsed / duration);
-      var eased = sineEase(t);
+      var eased = sCurveEase(t);
+
       currentValue = Math.round(rampFrom + (rampTo - rampFrom) * eased);
       emit(EV_ABS, axis, currentValue);
 
@@ -193,54 +226,74 @@ window.themes = ['light', 'dark', 'amoled'];
     }
 
     function press(e) {
-      e.preventDefault();
+      if (e) e.preventDefault();
+      if (active) return;
+      active = true;
       btn.classList.add('pressed');
       if (navigator.vibrate) navigator.vibrate(20);
-      pressing = true;
-      rampFrom = currentValue;
-      rampTo = 255;
-      rampStart = 0;
-      if (animId) cancelAnimationFrame(animId);
-      animId = requestAnimationFrame(animate);
+
+      if (isInstant) {
+        currentValue = 255;
+        emit(EV_ABS, axis, 255);
+      } else {
+        rampFrom = currentValue;
+        rampTo = 255;
+        rampStart = 0;
+        if (animId) cancelAnimationFrame(animId);
+        animId = requestAnimationFrame(animate);
+      }
     }
 
     function release(e) {
-      e.preventDefault();
+      if (e) e.preventDefault();
+      if (!active) return;
+      active = false;
       btn.classList.remove('pressed');
-      pressing = false;
-      rampFrom = currentValue;
-      rampTo = 0;
-      rampStart = 0;
-      if (animId) cancelAnimationFrame(animId);
-      animId = requestAnimationFrame(animate);
+
+      if (isInstant) {
+        currentValue = 0;
+        emit(EV_ABS, axis, 0);
+      } else {
+        rampFrom = currentValue;
+        rampTo = 0;
+        rampStart = 0;
+        if (animId) cancelAnimationFrame(animId);
+        animId = requestAnimationFrame(animate);
+      }
     }
 
     btn.addEventListener('touchstart', press, { passive: false });
     btn.addEventListener('touchend', release, { passive: false });
     btn.addEventListener('touchcancel', release, { passive: false });
-    btn.addEventListener('mousedown', press);
-    btn.addEventListener('mouseup', release);
-    btn.addEventListener('mouseleave', release);
+    btn.addEventListener('mousedown', function(e) {
+      if (e.button === 0) press(e);
+    });
+    window.addEventListener('mouseup', release);
   }
 
   function initPedalControls() {
     var sliders = (currentPreset && currentPreset.sliders) || [
-      { id: 'throttle', axis: '0x01', mode: 'slider' },
-      { id: 'brake', axis: '0x02', mode: 'slider' },
-      { id: 'clutch', axis: '0x05', mode: 'slider' }
+      { id: 'throttle', label: 'Throttle', axis: '0x01', visible: true, mode: 'slider' },
+      { id: 'brake', label: 'Brake', axis: '0x02', visible: true, mode: 'slider' },
+      { id: 'clutch', label: 'Clutch', axis: '0x03', visible: true, mode: 'slider' }
     ];
 
     sliders.forEach(function(s) {
       var container = document.getElementById('slider-' + s.id);
       if (!container) return;
-      var axis = parseInt(s.axis, 16);
+      
+      var isVisible = s.visible !== false;
+      container.style.display = isVisible ? 'flex' : 'none';
+      if (!isVisible) return;
+
+      var axis = typeof s.axis === 'number' ? s.axis : parseInt(s.axis, 16);
 
       var track = container.querySelector('.slider-track');
       var oldBtn = container.querySelector('.pedal-button');
       if (track) track.remove();
       if (oldBtn) oldBtn.remove();
 
-      if (s.mode === 'button') {
+      if (s.mode === 'button' || s.mode === 'instant' || s.mode === 'scurve') {
         initPedalButton(container, axis, s);
       } else {
         var trackEl = document.createElement('div');
@@ -256,6 +309,7 @@ window.themes = ['light', 'dark', 'amoled'];
   // --- Steering Wheel (Rotary Dial) ---
   var wheelKnob = document.getElementById('steering-wheel-knob');
   var wheelTrackingId = null;
+  var isWheelMouseDown = false;
   var currentAngle = 0;
   var lastTouchAngle = 0;
   
@@ -267,6 +321,23 @@ window.themes = ['light', 'dark', 'amoled'];
     var deg = (rad * 180 / Math.PI) + 90;
     if (deg > 180) deg -= 360;
     return deg;
+  }
+
+  function updateWheelAngle(deg) {
+    var delta = deg - lastTouchAngle;
+    if (delta > 180) delta -= 360;
+    else if (delta < -180) delta += 360;
+
+    currentAngle += delta;
+    lastTouchAngle = deg;
+
+    var maxAngle = (currentPreset && currentPreset.steeringRange) ? currentPreset.steeringRange / 2 : 180;
+    currentAngle = Math.max(-maxAngle, Math.min(maxAngle, currentAngle));
+
+    wheelKnob.style.transform = 'rotate(' + currentAngle + 'deg)';
+
+    var val = Math.round((currentAngle / maxAngle) * 32767);
+    emit(EV_ABS, ABS_X, val);
   }
 
   wheelKnob.addEventListener('touchstart', function(e) {
@@ -282,28 +353,28 @@ window.themes = ['light', 'dark', 'amoled'];
     for (var i=0; i<e.changedTouches.length; i++) {
       if (e.changedTouches[i].identifier === wheelTrackingId) {
         e.preventDefault();
-        var newAngle = getTouchAngle(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
-        
-        var delta = newAngle - lastTouchAngle;
-        if (delta > 180) delta -= 360;
-        else if (delta < -180) delta += 360;
-
-        currentAngle += delta;
-        lastTouchAngle = newAngle;
-
-        var maxAngle = (currentPreset && currentPreset.steeringRange) ? currentPreset.steeringRange / 2 : 90;
-        currentAngle = Math.max(-maxAngle, Math.min(maxAngle, currentAngle));
-
-        wheelKnob.style.transform = 'rotate(' + currentAngle + 'deg)';
-
-        var val = Math.round((currentAngle / maxAngle) * 32767);
-        emit(EV_ABS, ABS_X, val);
+        var deg = getTouchAngle(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+        updateWheelAngle(deg);
       }
     }
   }, { passive: false });
 
+  wheelKnob.addEventListener('mousedown', function(e) {
+    if (e.button !== 0) return;
+    isWheelMouseDown = true;
+    lastTouchAngle = getTouchAngle(e.clientX, e.clientY);
+  });
+
+  window.addEventListener('mousemove', function(e) {
+    if (isWheelMouseDown) {
+      var deg = getTouchAngle(e.clientX, e.clientY);
+      updateWheelAngle(deg);
+    }
+  });
+
   function releaseWheel() {
     wheelTrackingId = null;
+    isWheelMouseDown = false;
     currentAngle = 0;
     wheelKnob.style.transition = 'transform 0.2s ease-out';
     wheelKnob.style.transform = 'rotate(0deg)';
@@ -325,6 +396,10 @@ window.themes = ['light', 'dark', 'amoled'];
     for (var i=0; i<e.changedTouches.length; i++) {
       if (e.changedTouches[i].identifier === wheelTrackingId) releaseWheel();
     }
+  });
+
+  window.addEventListener('mouseup', function(e) {
+    if (isWheelMouseDown) releaseWheel();
   });
 
   // --- Camera Joystick (positionable module) ---
@@ -578,11 +653,51 @@ window.themes = ['light', 'dark', 'amoled'];
       .then(data => {
         currentPreset = data;
         renderButtons(data.buttons || [], data.modules || []);
+        
+        // Normalize sliders array
+        if (!currentPreset.sliders) {
+          currentPreset.sliders = [
+            { id: "throttle", label: "Throttle", axis: "0x01", visible: true, mode: "slider" },
+            { id: "brake", label: "Brake", axis: "0x02", visible: true, mode: "slider" },
+            { id: "clutch", label: "Clutch", axis: "0x03", visible: true, mode: "slider" }
+          ];
+        }
+
         initPedalControls();
         
-        var hasClutch = data.sliders && data.sliders.some(s => s.id === 'clutch' && s.visible);
-        document.getElementById('slider-clutch').style.display = hasClutch ? 'flex' : 'none';
-        document.getElementById('edit-clutch-toggle').checked = hasClutch;
+        // Update Editor modal checkboxes and dropdowns
+        var tSlider = currentPreset.sliders.find(s => s.id === 'throttle') || { visible: true, mode: 'slider' };
+        var bSlider = currentPreset.sliders.find(s => s.id === 'brake') || { visible: true, mode: 'slider' };
+        var cSlider = currentPreset.sliders.find(s => s.id === 'clutch') || { visible: false, mode: 'slider' };
+
+        var elTV = document.getElementById('toggle-throttle-visible');
+        var elTM = document.getElementById('mode-throttle');
+        var elBV = document.getElementById('toggle-brake-visible');
+        var elBM = document.getElementById('mode-brake');
+        var elCV = document.getElementById('toggle-clutch-visible');
+        var elCM = document.getElementById('mode-clutch');
+
+        if (elTV) elTV.checked = tSlider.visible !== false;
+        if (elTM) elTM.value = tSlider.mode || 'slider';
+        if (document.getElementById('ramp-time-throttle')) {
+          document.getElementById('ramp-time-throttle').value = tSlider.rampTime !== undefined ? tSlider.rampTime : 0.5;
+        }
+
+        if (elBV) elBV.checked = bSlider.visible !== false;
+        if (elBM) elBM.value = bSlider.mode || 'slider';
+        if (document.getElementById('ramp-time-brake')) {
+          document.getElementById('ramp-time-brake').value = bSlider.rampTime !== undefined ? bSlider.rampTime : 0.5;
+        }
+
+        if (elCV) elCV.checked = cSlider.visible !== false;
+        if (elCM) elCM.value = cSlider.mode || 'slider';
+        if (document.getElementById('ramp-time-clutch')) {
+          document.getElementById('ramp-time-clutch').value = cSlider.rampTime !== undefined ? cSlider.rampTime : 0.5;
+        }
+
+        window.updatePedalRampVisibility('throttle');
+        window.updatePedalRampVisibility('brake');
+        window.updatePedalRampVisibility('clutch');
         
         document.getElementById('edit-lefty-toggle').checked = !!data.leftyMode;
         var wheelMain = document.querySelector('.wheel-main');
@@ -602,6 +717,11 @@ window.themes = ['light', 'dark', 'amoled'];
   // --- Editor ---
   document.getElementById('btn-edit-mode').addEventListener('click', function() {
     document.getElementById('editor-modal').style.display = 'flex';
+    if (window.updatePedalRampVisibility) {
+      window.updatePedalRampVisibility('throttle');
+      window.updatePedalRampVisibility('brake');
+      window.updatePedalRampVisibility('clutch');
+    }
     renderEditorList();
   });
   document.getElementById('btn-close-editor').addEventListener('click', function() {
@@ -624,28 +744,6 @@ window.themes = ['light', 'dark', 'amoled'];
       return;
     }
     var availableIcons = window._cachedButtonIcons || [];
-
-    // Pedal Mode editors (Throttle, Brake, Clutch)
-    var sliders = currentPreset.sliders || [
-      { id: "throttle", label: "Throttle", axis: "0x01", mode: "slider" },
-      { id: "brake", label: "Brake", axis: "0x02", mode: "slider" },
-      { id: "clutch", label: "Clutch", axis: "0x05", mode: "slider" }
-    ];
-    sliders.forEach((s, idx) => {
-      var row = document.createElement('div');
-      row.className = 'edit-btn-row';
-      row.innerHTML = `
-        <label style="font-weight:bold; min-width:80px">🎚 ${s.label || s.id}</label>
-        <select onchange="updateSliderMode(${idx}, this.value)">
-          <option value="slider" ${(s.mode||'slider')==='slider'?'selected':''}>Slider Mode</option>
-          <option value="button" ${s.mode==='button'?'selected':''}>Button Mode (Sine Ramp)</option>
-        </select>
-      `;
-      list.appendChild(row);
-    });
-
-    var pedalSep = document.createElement('hr');
-    list.appendChild(pedalSep);
 
     // Camera joystick position editor
     var modules = currentPreset.modules || [];
@@ -765,14 +863,23 @@ window.themes = ['light', 'dark', 'amoled'];
     var name = document.getElementById('preset-name').value || 'Custom';
     currentPreset.name = name;
     
-    var hasClutch = document.getElementById('edit-clutch-toggle').checked;
-    if(!currentPreset.sliders) currentPreset.sliders = [
-      { id: "throttle", label: "Throttle", axis: "0x01", visible: true },
-      { id: "brake", label: "Brake", axis: "0x02", visible: true },
-      { id: "clutch", label: "Clutch", axis: "0x05", visible: false }
+    var tVis = document.getElementById('toggle-throttle-visible').checked;
+    var tMode = document.getElementById('mode-throttle').value;
+    var tRamp = parseFloat(document.getElementById('ramp-time-throttle').value) || 0.5;
+
+    var bVis = document.getElementById('toggle-brake-visible').checked;
+    var bMode = document.getElementById('mode-brake').value;
+    var bRamp = parseFloat(document.getElementById('ramp-time-brake').value) || 0.5;
+
+    var cVis = document.getElementById('toggle-clutch-visible').checked;
+    var cMode = document.getElementById('mode-clutch').value;
+    var cRamp = parseFloat(document.getElementById('ramp-time-clutch').value) || 0.5;
+
+    currentPreset.sliders = [
+      { id: "throttle", label: "Throttle", axis: "0x01", visible: tVis, mode: tMode, rampTime: tRamp },
+      { id: "brake", label: "Brake", axis: "0x02", visible: bVis, mode: bMode, rampTime: bRamp },
+      { id: "clutch", label: "Clutch", axis: "0x03", visible: cVis, mode: cMode, rampTime: cRamp }
     ];
-    var c = currentPreset.sliders.find(s=>s.id==='clutch');
-    if(c) c.visible = hasClutch;
 
     currentPreset.leftyMode = document.getElementById('edit-lefty-toggle').checked;
     currentPreset.steeringRange = parseInt(document.getElementById('edit-steering-range').value) || 180;
@@ -800,12 +907,12 @@ window.themes = ['light', 'dark', 'amoled'];
     setTimeout(function() {
       if (currentPreset && currentPreset.sliders) {
         currentPreset.sliders.forEach(function(s) {
-          emit(EV_ABS, parseInt(s.axis, 16), 0);
+          emit(EV_ABS, typeof s.axis === 'number' ? s.axis : parseInt(s.axis, 16), 0);
         });
       } else {
         emit(EV_ABS, 0x01, 0);
         emit(EV_ABS, 0x02, 0);
-        emit(EV_ABS, 0x05, 0);
+        emit(EV_ABS, 0x03, 0);
       }
     }, 100);
   });

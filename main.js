@@ -50,6 +50,14 @@ Virtual gamepad application
         }
       });
     } catch(e) {}
+
+    try {
+      // 4. Force release stuck network ports
+      [8443, 8080, 8000, 3000, 8081].forEach(function(p) {
+        child_process.execSync("fuser -k -s " + p + "/tcp 2>/dev/null || true");
+      });
+      log("info", "[AUTO-HEAL] Released stuck network ports (8443, 8080, 8000, 3000, 8081)");
+    } catch(e) {}
   }
 
   server = new forever.Monitor(
@@ -78,16 +86,6 @@ Virtual gamepad application
       log("warning", "[AUTO-HEAL] Crash loop detected. Triggering auto-heal recovery...");
       autoHealSystem();
       earlyDeathCount = 0;
-      setTimeout(function() {
-        log("info", "[AUTO-HEAL] Restarting server after self-healing...");
-        try {
-          if (!server.running) {
-            server.start();
-          } else {
-            log("info", "[AUTO-HEAL] Server process was already restarted by monitor.");
-          }
-        } catch(e) { log("error", "[AUTO-HEAL] Restart failed: " + e.message); }
-      }, 2000);
       return;
     }
   });

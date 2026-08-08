@@ -97,19 +97,57 @@
   <div id="editor-modal" class="modal-overlay" style="display:none;">
     <div class="modal-content editor-content">
       <h2>Edit Wheel Settings</h2>
-      <label>
-        <input type="checkbox" id="edit-clutch-toggle"> Enable Clutch Slider
-      </label>
-      <label>
+      
+      <div style="margin-bottom: 15px; background: rgba(0,0,0,0.03); padding: 10px; border-radius: 8px;">
+        <h3 style="font-size: 0.95rem; margin-bottom: 8px;">Pedal Controls (Sliders / Buttons)</h3>
+        
+        <div class="edit-btn-row" style="flex-wrap: wrap; gap: 8px; align-items: center;">
+          <label><input type="checkbox" id="toggle-throttle-visible" checked> Throttle</label>
+          <select id="mode-throttle" onchange="updatePedalRampVisibility('throttle')">
+            <option value="slider">Analog Slider Mode</option>
+            <option value="button">Progressive S-Curve Button</option>
+            <option value="instant">Instant Digital Button</option>
+          </select>
+          <span id="container-ramp-throttle" style="display:none; font-size: 0.85rem; align-items: center; gap: 4px;">
+            Curve Time (s): <input type="number" id="ramp-time-throttle" value="0.5" step="0.1" min="0.05" max="10.0" style="width: 65px; padding: 2px 4px;">
+          </span>
+        </div>
+
+        <div class="edit-btn-row" style="flex-wrap: wrap; gap: 8px; align-items: center;">
+          <label><input type="checkbox" id="toggle-brake-visible" checked> Brake</label>
+          <select id="mode-brake" onchange="updatePedalRampVisibility('brake')">
+            <option value="slider">Analog Slider Mode</option>
+            <option value="button">Progressive S-Curve Button</option>
+            <option value="instant">Instant Digital Button</option>
+          </select>
+          <span id="container-ramp-brake" style="display:none; font-size: 0.85rem; align-items: center; gap: 4px;">
+            Curve Time (s): <input type="number" id="ramp-time-brake" value="0.5" step="0.1" min="0.05" max="10.0" style="width: 65px; padding: 2px 4px;">
+          </span>
+        </div>
+
+        <div class="edit-btn-row" style="flex-wrap: wrap; gap: 8px; align-items: center;">
+          <label><input type="checkbox" id="toggle-clutch-visible"> Clutch</label>
+          <select id="mode-clutch" onchange="updatePedalRampVisibility('clutch')">
+            <option value="slider">Analog Slider Mode</option>
+            <option value="button">Progressive S-Curve Button</option>
+            <option value="instant">Instant Digital Button</option>
+          </select>
+          <span id="container-ramp-clutch" style="display:none; font-size: 0.85rem; align-items: center; gap: 4px;">
+            Curve Time (s): <input type="number" id="ramp-time-clutch" value="0.5" step="0.1" min="0.05" max="10.0" style="width: 65px; padding: 2px 4px;">
+          </span>
+        </div>
+      </div>
+
+      <label style="display: block; margin-bottom: 10px;">
         <input type="checkbox" id="edit-lefty-toggle"> Lefty Mode (Mirror Layout)
       </label>
-      <label>
-        Total Steering Range (e.g. 900 for 450° each way): 
+      <label style="display: block; margin-bottom: 15px;">
+        Total Steering Range (e.g. 360 for 180° each way): 
         <input type="number" id="edit-steering-range" value="180" style="width: 80px;">
       </label>
       
       <div class="editor-buttons-list" id="editor-buttons-list">
-        <!-- Buttons injected here -->
+        <!-- Extra Buttons injected here -->
       </div>
       
       <button id="btn-add-button">+ Add Button</button>

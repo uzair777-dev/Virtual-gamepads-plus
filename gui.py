@@ -76,7 +76,6 @@ ensure_wayland_panel_icon()
 class VirtualGamepadsGUI(Gtk.Window):
     def __init__(self):
         super().__init__(title="Virtual Gamepads Plus")
-        self.set_wmclass("virtual-gamepads-plus", "Virtual-gamepads-plus")
         self.set_default_size(600, 500)
         self.set_border_width(10)
 
@@ -226,10 +225,64 @@ class VirtualGamepadsGUI(Gtk.Window):
         mark = self.log_buffer.create_mark(None, self.log_buffer.get_end_iter(), False)
         GLib.idle_add(self.log_view.scroll_to_mark, mark, 0.0, False, 0.0, 0.0)
 
+    def check_and_prompt_occupied_ports(self):
+        """Checking if target server ports are bound by external processes and prompt user to kill them with sudo/pkexec."""
+        target_ports = [8443, 8080, 8000, 3000, 8081]
+        occupied = []
+
+        for p in target_ports:
+            try:
+                res = subprocess.run(['ss', '-tulpn', f'sport = :{p}'], capture_output=True, text=True)
+                if f':{p}' in res.stdout:
+                    info = f"Port {p}"
+                    lines = res.stdout.strip().split('\n')
+                    for line in lines[1:]:
+                        if 'users:' in line:
+                            info += f" ({line.split('users:')[1].strip()})"
+                    occupied.append((p, info))
+            except Exception:
+                pass
+
+        if occupied:
+            ports_str = ", ".join([str(p[0]) for p in occupied])
+            details_str = "\n".join([p[1] for p in occupied])
+            
+            dialog = Gtk.MessageDialog(
+                transient_for=self,
+                flags=0,
+                message_type=Gtk.MessageType.QUESTION,
+                buttons=Gtk.ButtonsType.YES_NO,
+                text=f"Network Port(s) {ports_str} in Use"
+            )
+            dialog.format_secondary_text(
+                f"The following network port(s) are currently occupied by background processes:\n\n"
+                f"{details_str}\n\n"
+                "Would you like to terminate these stuck processes using elevated privileges (sudo/pkexec) to free up ports for Virtual Gamepads Plus?"
+            )
+            response = dialog.run()
+            dialog.destroy()
+
+            if response == Gtk.ResponseType.YES:
+                self.log(f"[AUTO-HEAL] User approved elevated cleanup for port(s) {ports_str}...\n")
+                try:
+                    for p_item in occupied:
+                        port_num = p_item[0]
+                        res = subprocess.run(['fuser', '-k', '-9', f'{port_num}/tcp'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        if res.returncode != 0:
+                            subprocess.run(['pkexec', 'fuser', '-k', '-9', f'{port_num}/tcp'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    self.log(f"[AUTO-HEAL] Successfully released network port(s) {ports_str}.\n")
+                    import time
+                    time.sleep(0.4) # Allow kernel TIME_WAIT sockets to clear
+                except Exception as e:
+                    self.log(f"[AUTO-HEAL] Notice during port cleanup: {e}\n")
+
     def on_start_clicked(self, button):
         if button is not None:
             self.log_buffer.set_text("")
             self.user_stopped = False
+
+        # Prompt user to clean occupied ports if necessary
+        self.check_and_prompt_occupied_ports()
 
         self.start_btn.set_sensitive(False)
         run_script = os.path.join(SCRIPT_DIR, 'run.sh')
@@ -339,21 +392,55 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.stop_btn.set_sensitive(False)
         self.stop_server()
 
-    def stop_server(self):
-        if self.server_process:
+    def stop_server(self, callback=None):
+        self.user_stopped = True
+        if hasattr(self, 'auto_restart_timeout_id') and self.auto_restart_timeout_id:
             try:
-                pgid = os.getpgid(self.server_process.pid)
-                if getattr(self, 'is_elevated', False):
-                    # Launch non-blocking Popen so pkexec doesn't freeze the GTK main UI thread
-                    subprocess.Popen(
-                        ['pkexec', 'kill', '-TERM', '--', '-' + str(pgid)],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL
-                    )
-                else:
-                    os.killpg(pgid, signal.SIGTERM)
-            except Exception as e:
-                self.log(f"Error stopping server: {e}\n")
+                GLib.source_remove(self.auto_restart_timeout_id)
+            except Exception:
+                pass
+            self.auto_restart_timeout_id = None
+
+        if not self.server_process:
+            self.server_stopped()
+            if callback: callback()
+            return
+
+        proc = self.server_process
+        self.server_process = None
+
+        try:
+            pgid = os.getpgid(proc.pid)
+            if getattr(self, 'is_elevated', False):
+                subprocess.Popen(
+                    ['pkexec', 'kill', '-INT', '--', '-' + str(pgid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+            else:
+                os.killpg(pgid, signal.SIGINT)
+        except Exception as e:
+            self.log(f"Notice during server stop: {e}\n")
+
+        def force_kill_if_alive():
+            try:
+                if proc.poll() is None:
+                    pgid = os.getpgid(proc.pid)
+                    if getattr(self, 'is_elevated', False):
+                        subprocess.Popen(
+                            ['pkexec', 'kill', '-KILL', '--', '-' + str(pgid)],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL
+                        )
+                    else:
+                        os.killpg(pgid, signal.SIGKILL)
+            except Exception:
+                pass
+
+            self.server_stopped()
+            if callback: callback()
+
+        GLib.timeout_add(600, force_kill_if_alive)
 
     def server_stopped(self):
         exit_code = None
@@ -503,8 +590,7 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.stop_server()
 
     def on_tray_quit(self, item=None):
-        self.stop_server()
-        Gtk.main_quit()
+        self.cleanup_and_quit()
 
     def update_tray_visibility(self, visible):
         if self.indicator:
@@ -518,14 +604,16 @@ class VirtualGamepadsGUI(Gtk.Window):
         # Update stop menu item state
         self.item_stop.set_sensitive(self.server_process is not None)
 
+    def cleanup_and_quit(self):
+        self.stop_server(callback=Gtk.main_quit)
+
     def on_delete_event(self, window, event):
         if self.tray_toggle.get_active() and (self.indicator or self.status_icon):
             self.hide()
             self.update_tray_visibility(True)
             return True # Prevents window destruction
         else:
-            self.stop_server()
-            Gtk.main_quit()
+            self.cleanup_and_quit()
             return False
 
 if __name__ == "__main__":
@@ -533,4 +621,13 @@ if __name__ == "__main__":
     app.show_all()
     # Ensure QR image is hidden initially
     app.qr_image.hide()
+    # Check if target server ports are bound on startup
+    GLib.idle_add(app.check_and_prompt_occupied_ports)
+
+    def handle_sigint(sig, frame):
+        GLib.idle_add(app.cleanup_and_quit)
+
+    signal.signal(signal.SIGINT, handle_sigint)
+    signal.signal(signal.SIGTERM, handle_sigint)
+
     Gtk.main()
