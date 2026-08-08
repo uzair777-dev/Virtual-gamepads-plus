@@ -271,8 +271,9 @@ class VirtualGamepadsGUI(Gtk.Window):
             )
             
             self.status_label.set_markup("<span foreground='#2196F3' weight='bold'>Starting...</span>")
-            self.tray_item_start.set_sensitive(False)
-            self.tray_item_stop.set_sensitive(True)
+            self.stop_btn.set_sensitive(True)
+            if hasattr(self, 'item_stop') and self.item_stop:
+                self.item_stop.set_sensitive(True)
             
         except Exception as e:
             self.log(f"Failed to start server process: {e}\n")
@@ -341,22 +342,23 @@ class VirtualGamepadsGUI(Gtk.Window):
     def stop_server(self):
         if self.server_process:
             try:
-                # Get the process group ID of the pkexec process
                 pgid = os.getpgid(self.server_process.pid)
-                # Use pkexec to kill the entire process group (run.sh, forever-monitor, node)
-                subprocess.run(
-                    ['pkexec', 'kill', '-TERM', '--', '-' + str(pgid)],
-                    timeout=10
-                )
-            except subprocess.TimeoutExpired:
-                self.log("Timeout waiting for server to stop.\n")
+                if getattr(self, 'is_elevated', False):
+                    # Launch non-blocking Popen so pkexec doesn't freeze the GTK main UI thread
+                    subprocess.Popen(
+                        ['pkexec', 'kill', '-TERM', '--', '-' + str(pgid)],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
+                else:
+                    os.killpg(pgid, signal.SIGTERM)
             except Exception as e:
                 self.log(f"Error stopping server: {e}\n")
 
     def server_stopped(self):
         exit_code = None
         if self.server_process:
-            exit_code = self.server_process.wait()
+            exit_code = self.server_process.poll()
             self.server_process = None
 
         if self.io_watch_id:
