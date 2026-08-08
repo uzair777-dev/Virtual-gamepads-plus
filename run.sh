@@ -27,10 +27,38 @@ if [ -n "$MISSING_DEPS" ]; then
 	exit 1
 fi
 
+# Parse command-line flags
+CUSTOM_PORT=""
 GUI_MODE=""
-if [ "$1" == "--gui" ]; then
-    GUI_MODE="1"
-fi
+NODE_PASSTHROUGH_ARGS=()
+
+PREV_ARG=""
+for arg in "$@"; do
+    if [ "$PREV_ARG" == "--port" ] || [ "$PREV_ARG" == "-p" ]; then
+        CUSTOM_PORT="${arg//\"/}"
+        PREV_ARG=""
+        continue
+    fi
+    case $arg in
+        --port=*)
+            val="${arg#*=}"
+            CUSTOM_PORT="${val//\"/}"
+            ;;
+        -p=*)
+            val="${arg#*=}"
+            CUSTOM_PORT="${val//\"/}"
+            ;;
+        --port|-p)
+            PREV_ARG="$arg"
+            ;;
+        --gui)
+            GUI_MODE="1"
+            ;;
+        *)
+            NODE_PASSTHROUGH_ARGS+=("$arg")
+            ;;
+    esac
+done
 
 # Get IP via default route — works on WiFi, Ethernet, VPN, etc.
 IP_ADDRESS=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[\d.]+')
@@ -74,9 +102,28 @@ mkdir -p "$SCRIPT_DIR/ssl"
 
 # Ensure presets directory exists and has correct permissions
 mkdir -p "$SCRIPT_DIR/presets/wheel"
-chmod -R 755 "$SCRIPT_DIR/presets" 2>/dev/null || true
+if [ -n "$CUSTOM_PORT" ]; then
+    if ! [[ "$CUSTOM_PORT" =~ ^[0-9]+$ ]] || [ "$CUSTOM_PORT" -lt 1 ] || [ "$CUSTOM_PORT" -gt 65535 ]; then
+        if [ -z "$GUI_MODE" ]; then
+            echo -e "\033[1;31mError:\033[0m Invalid port '$CUSTOM_PORT'. TCP ports must be between 1 and 65535."
+        fi
+        if [ "$CUSTOM_PORT" == "80085" ]; then
+            if [ -z "$GUI_MODE" ]; then
+                echo -e "\033[1;33mNotice:\033[0m 80085 exceeds max TCP port (65535). Automatically correcting to port 8085..."
+            fi
+            CUSTOM_PORT="8085"
+        else
+            CUSTOM_PORT=""
+        fi
+    fi
+fi
 
-PORT=$(node -e "console.log(require('./config.json').port)" 2>/dev/null || echo "8443")
+if [ -n "$CUSTOM_PORT" ]; then
+    PORT="$CUSTOM_PORT"
+    export PORT="$CUSTOM_PORT"
+else
+    PORT=$(node -e "console.log(require('./config.json').port)" 2>/dev/null || echo "8443")
+fi
 
 if [ -n "$GUI_MODE" ]; then
     echo "GUI_IP=$IP_ADDRESS"
@@ -89,27 +136,23 @@ else
     echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
 fi
 
-# Interactive port cleanup prompt for CLI mode
+# First attempt user-level process cleanup on target ports
+if command -v fuser &>/dev/null; then
+    fuser -k -s 8443/tcp 8080/tcp 8000/tcp 3000/tcp 8081/tcp ${PORT}/tcp &>/dev/null || true
+    sleep 0.2
+fi
+
+# Interactive port cleanup prompt for CLI mode (only if port is STILL occupied by root/other user)
 if [ -z "$GUI_MODE" ] && [ -t 0 ] && command -v ss &>/dev/null; then
-    if ss -tulpn | grep -qE ":8443 |:8080 "; then
-        echo -e "\033[1;33m==> Notice:\033[0m Target server port (8443/8080) is currently in use."
+    if ss -tulpn | grep -qE ":${PORT} |:8443 |:8080 "; then
+        echo -e "\033[1;33m==> Notice:\033[0m Target server port ($PORT) is currently in use by elevated process."
         read -p "Would you like to terminate stuck processes using sudo to free up ports? [Y/n] " prompt_ans
         if [[ "$prompt_ans" =~ ^[Yy]$ || -z "$prompt_ans" ]]; then
-            sudo fuser -k -9 8443/tcp 8080/tcp 8000/tcp 3000/tcp 8081/tcp 2>/dev/null || true
+            sudo fuser -k -9 ${PORT}/tcp 8443/tcp 8080/tcp 8000/tcp 3000/tcp 8081/tcp 2>/dev/null || true
             echo -e "\033[1;32m==>\033[0m Network ports released successfully."
             sleep 0.4
         fi
     fi
-fi
-
-# Ensure user's own processes on server ports are stopped before starting
-if command -v fuser &>/dev/null; then
-    fuser -k -s 8443/tcp &>/dev/null || true
-    fuser -k -s 8080/tcp &>/dev/null || true
-    fuser -k -s 8000/tcp &>/dev/null || true
-    fuser -k -s 3000/tcp &>/dev/null || true
-    fuser -k -s 8081/tcp &>/dev/null || true
-    fuser -k -s ${PORT}/tcp &>/dev/null || true
 fi
 
 # Function to safely handle non-blocking sudo firewall commands
@@ -141,12 +184,12 @@ cleanup() {
         fi
     fi
     
-    # Kill remaining user processes on ports
+    # Kill remaining user processes on custom port and standard server ports
     if command -v fuser &>/dev/null; then
-        fuser -k -s 8443/tcp &>/dev/null || true
-        fuser -k -s 8080/tcp &>/dev/null || true
-        fuser -k -s ${PORT}/tcp &>/dev/null || true
+        fuser -k -9 ${PORT}/tcp 8443/tcp 8080/tcp 8008/tcp 8000/tcp 3000/tcp 8081/tcp &>/dev/null || true
     fi
+    pkill -f "$SCRIPT_DIR/server.js" &>/dev/null || true
+    pkill -f "$SCRIPT_DIR/main.js" &>/dev/null || true
 }
 
 trap cleanup EXIT INT TERM HUP
@@ -192,12 +235,17 @@ if [ -n "$GUI_MODE" ]; then
     echo "GUI_STATUS=running"
 fi
 
+PORT_ARG=""
+if [ -n "$CUSTOM_PORT" ]; then
+    PORT_ARG="--port $CUSTOM_PORT"
+fi
+
 # Run virtual gamepad server (Smart Fallback Sudo Mode)
 if [ -w "/dev/uinput" ] && [ "${PORT:-8080}" -ge 1024 ]; then
     if [ -z "$GUI_MODE" ]; then
         echo "Running server in non-sudo mode (user has /dev/uinput permissions)..."
     fi
-    env $HOT_RELOAD_ENV $DEBUG_ENV $(which node) "$SCRIPT_DIR/main.js"
+    env PORT="$PORT" $HOT_RELOAD_ENV $DEBUG_ENV $(which node) "$SCRIPT_DIR/main.js" $PORT_ARG
 else
     # Need elevated privileges — use sudo only if non-interactive sudo is available,
     # otherwise the GUI already launched via pkexec (gui.py handles that path)
@@ -205,7 +253,7 @@ else
         if [ -z "$GUI_MODE" ]; then
             echo "Running server with sudo (/dev/uinput permission required or low port < 1024)..."
         fi
-        sudo bash -c "$HOT_RELOAD_ENV $DEBUG_ENV $(which node) $SCRIPT_DIR/main.js"
+        sudo bash -c "PORT=$PORT $HOT_RELOAD_ENV $DEBUG_ENV $(which node) $SCRIPT_DIR/main.js $PORT_ARG"
     else
         # GUI mode: gui.py already handled elevation via pkexec before launching run.sh
         # CLI mode: inform the user they need to fix permissions
@@ -215,6 +263,6 @@ else
             exit 1
         fi
         # In GUI mode: pkexec already elevated us, just run directly
-        env $HOT_RELOAD_ENV $DEBUG_ENV $(which node) "$SCRIPT_DIR/main.js"
+        env PORT="$PORT" $HOT_RELOAD_ENV $DEBUG_ENV $(which node) "$SCRIPT_DIR/main.js" $PORT_ARG
     fi
 fi

@@ -12,9 +12,27 @@ Virtual gamepad application
 
   log = require("./lib/log");
 
+  var serverArgs = ["--https", "--key", "key.pem", "--cert", "cert.pem"];
+
+  var customPort = process.env.PORT;
+  for (var i = 0; i < process.argv.length; i++) {
+    var arg = process.argv[i];
+    if (arg.indexOf("--port=") === 0) {
+      customPort = arg.split("=")[1].replace(/"/g, "");
+    } else if ((arg === "--port" || arg === "-p") && process.argv[i + 1]) {
+      customPort = process.argv[i + 1].replace(/"/g, "");
+    }
+  }
+
+  if (customPort) {
+    serverArgs.push("--port", customPort.toString());
+    process.env.PORT = customPort.toString();
+    log("info", "Custom port override configured: " + customPort);
+  }
+
   var options = {
     max: Infinity,
-    args: ["--https", "--key", "key.pem", "--cert", "cert.pem"],
+    args: serverArgs,
   };
 
   if (process.env.HOT_RELOAD) {
@@ -97,25 +115,33 @@ Virtual gamepad application
     );
   });
 
-  ref = ["SIGTERM", "SIGINT", "exit"];
+  ref = ["SIGTERM", "SIGINT"];
   for (i = 0, len = ref.length; i < len; i++) {
     sig = ref[i];
     process.on(
       sig,
       (function(s) {
         return function() {
-          log("info", "received " + s);
+          if (exiting) return;
           exiting = true;
+          log("info", "Main process received signal " + s + ", stopping server...");
           try {
-            if (server.running) {
+            if (server && server.child) {
+              server.child.kill(s);
+            }
+            if (server && server.running) {
               server.stop();
             }
           } catch (e) {
             log("error", e.message);
           }
-          if (s !== "exit") {
-            return process.exit(0);
-          }
+          setTimeout(function() {
+            var targetPort = process.env.PORT || 8443;
+            try {
+              require("child_process").execSync("fuser -k -s " + targetPort + "/tcp 8443/tcp 8080/tcp 2>/dev/null || true");
+            } catch(e) {}
+            process.exit(0);
+          }, 350);
         };
       })(sig),
     );

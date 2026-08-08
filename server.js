@@ -46,9 +46,12 @@ Virtual gamepad application
     console.log('[NODE] Process exiting with code ' + code + ' after ' + uptime + 's uptime');
   });
 
-  ['SIGTERM', 'SIGINT', 'SIGHUP', 'SIGUSR1', 'SIGUSR2'].forEach(function(sig) {
+  ['SIGTERM', 'SIGINT', 'SIGHUP'].forEach(function(sig) {
     process.on(sig, function() {
       console.log('[NODE] Received signal: ' + sig);
+      if (typeof gracefulShutdown === 'function') {
+        gracefulShutdown(sig);
+      }
     });
   });
   // ========== END NODE DIAGNOSTICS ==========
@@ -238,8 +241,29 @@ Virtual gamepad application
   log('debug', '[INIT] ✓ Wheel hub loaded');
   log('debug', '[INIT] All controller hubs loaded successfully');
 
-// Port configuration - try primary first, then fallbacks
-var primaryPort = process.env.PORT || config.port;
+// Port configuration - parse custom port from --port flag, process.env.PORT, or config.json
+var customPort = process.env.PORT;
+for (var i = 0; i < process.argv.length; i++) {
+  var arg = process.argv[i];
+  if (arg.indexOf('--port=') === 0) {
+    customPort = arg.split('=')[1].replace(/"/g, '');
+  } else if ((arg === '--port' || arg === '-p') && process.argv[i + 1]) {
+    customPort = process.argv[i + 1].replace(/"/g, '');
+  }
+}
+
+var primaryPort = customPort ? parseInt(customPort, 10) : (process.env.PORT ? parseInt(process.env.PORT, 10) : config.port);
+
+if (isNaN(primaryPort) || primaryPort < 1 || primaryPort > 65535) {
+  if (customPort === '80085' || primaryPort === 80085) {
+    log('warning', 'Port 80085 exceeds maximum TCP port (65535). Automatically correcting to port 8085...');
+    primaryPort = 8085;
+  } else {
+    log('warning', 'Port ' + primaryPort + ' is out of valid TCP range (1 - 65535). Falling back to config port ' + config.port);
+    primaryPort = config.port;
+  }
+}
+
 var fallbackPorts = config.fallbackPorts || [8080, 8000, 3000, 8081];
 var allPorts = [primaryPort].concat(fallbackPorts);
 var maxTries = config.maxPortTries || 5;
@@ -623,6 +647,8 @@ socket.on('connectWheel', function() {
     });
   });
 
+var activeRedirectServer = null;
+
 // Function to start HTTP -> HTTPS redirect server after main HTTPS server is listening
 var startHttpRedirectServer = function(httpsPort) {
   var http = require('http');
@@ -636,6 +662,7 @@ var startHttpRedirectServer = function(httpsPort) {
     res.writeHead(301, { 'Location': httpsUrl });
     res.end('Redirecting to ' + httpsUrl);
   });
+  activeRedirectServer = redirectApp;
 
   redirectApp.on('error', function(err) {
     if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
@@ -724,6 +751,36 @@ var tryPort = function(ports, index, retries) {
     errorHandler(e);
   }
 };
+
+var isShuttingDown = false;
+function gracefulShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log('[NODE] Gracefully closing server sockets and cleaning up on signal ' + signal + '...');
+
+  if (activeRedirectServer && activeRedirectServer.close) {
+    try { activeRedirectServer.close(); } catch(e) {}
+  }
+
+  try {
+    if (gp_hub && gp_hub.cleanUp) gp_hub.cleanUp();
+    if (kb_hub && kb_hub.cleanUp) kb_hub.cleanUp();
+    if (tp_hub && tp_hub.cleanUp) tp_hub.cleanUp();
+    if (wh_hub && wh_hub.cleanUp) wh_hub.cleanUp();
+  } catch(e) {}
+
+  if (server && server.close) {
+    server.close(function() {
+      console.log('[NODE] HTTPS server socket closed successfully.');
+      process.exit(0);
+    });
+    setTimeout(function() {
+      process.exit(0);
+    }, 400);
+  } else {
+    process.exit(0);
+  }
+}
 
 // Start trying ports
 tryPort(allPorts, 0, 0);
