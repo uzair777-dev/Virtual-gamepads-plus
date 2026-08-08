@@ -180,17 +180,21 @@ Virtual gamepad application
     log('debug', '[TLS] Handshake SUCCESS from ' + remote + ' | protocol=' + proto + ' cipher=' + cipher);
   });
 
-  // Log TLS handshake failures (this is likely where phone connections die)
+  // Log TLS handshake failures (demote self-signed cert probe alerts to debug level)
   server.on('tlsClientError', function(err, tlsSocket) {
     var remote = tlsSocket.remoteAddress ? (tlsSocket.remoteAddress + ':' + tlsSocket.remotePort) : 'unknown';
-    log('warning', '[TLS] Handshake FAILED from ' + remote + ': ' + err.message);
-    log('debug', '[TLS] Error code: ' + err.code + ' | Stack: ' + err.stack);
+    var isCertUnknown = err.message && (err.message.indexOf('certificate unknown') !== -1 || err.message.indexOf('alert number 46') !== -1 || err.code === 'ERR_SSL_SSLV3_ALERT_CERTIFICATE_UNKNOWN');
+    var level = isCertUnknown ? 'debug' : 'warning';
+    log(level, '[TLS] Handshake notice from ' + remote + ': ' + err.message);
+    log('debug', '[TLS] Error code: ' + err.code);
   });
 
   // Log HTTP-level client errors
   server.on('clientError', function(err, socket) {
     var remote = socket.remoteAddress ? (socket.remoteAddress + ':' + socket.remotePort) : 'unknown';
-    log('warning', '[HTTP] Client error from ' + remote + ': ' + err.message);
+    var isCertUnknown = err.message && (err.message.indexOf('certificate unknown') !== -1 || err.message.indexOf('alert number 46') !== -1);
+    var level = isCertUnknown ? 'debug' : 'warning';
+    log(level, '[HTTP] Client notice from ' + remote + ': ' + err.message);
   });
 
   // Catch uncaught exceptions to prevent silent crashes

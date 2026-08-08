@@ -57,9 +57,22 @@ window.themes = ['light', 'dark', 'amoled'];
   window.updatePedalRampVisibility = function(id) {
     var modeEl = document.getElementById('mode-' + id);
     var container = document.getElementById('container-ramp-' + id);
+    var visEl = document.getElementById('toggle-' + id + '-visible');
+    var timeEl = document.getElementById('ramp-time-' + id);
+
     if (modeEl && container) {
       var mode = modeEl.value;
       container.style.display = (mode === 'button' || mode === 'scurve') ? 'inline-flex' : 'none';
+    }
+
+    if (currentPreset && currentPreset.sliders) {
+      var s = currentPreset.sliders.find(function(x) { return x.id === id; });
+      if (s) {
+        if (visEl) s.visible = visEl.checked;
+        if (modeEl) s.mode = modeEl.value;
+        if (timeEl) s.rampTime = parseFloat(timeEl.value) || 0.5;
+        initPedalControls();
+      }
     }
   };
 
@@ -189,6 +202,7 @@ window.themes = ['light', 'dark', 'amoled'];
 
     var isInstant = (sliderConfig.mode === 'instant');
     var active = false;
+    var touchActive = false;
     var animId = null;
     var currentValue = 0;
     var rampStart = 0;
@@ -226,7 +240,11 @@ window.themes = ['light', 'dark', 'amoled'];
     }
 
     function press(e) {
-      if (e) e.preventDefault();
+      if (e) {
+        if (e.type === 'touchstart') touchActive = true;
+        if (e.type === 'mousedown' && touchActive) return;
+        e.preventDefault();
+      }
       if (active) return;
       active = true;
       btn.classList.add('pressed');
@@ -245,7 +263,13 @@ window.themes = ['light', 'dark', 'amoled'];
     }
 
     function release(e) {
-      if (e) e.preventDefault();
+      if (e) {
+        if (e.type === 'touchend' || e.type === 'touchcancel') {
+          setTimeout(function() { touchActive = false; }, 300);
+        }
+        if (e.type === 'mouseup' && touchActive) return;
+        e.preventDefault();
+      }
       if (!active) return;
       active = false;
       btn.classList.remove('pressed');
@@ -265,9 +289,7 @@ window.themes = ['light', 'dark', 'amoled'];
     btn.addEventListener('touchstart', press, { passive: false });
     btn.addEventListener('touchend', release, { passive: false });
     btn.addEventListener('touchcancel', release, { passive: false });
-    btn.addEventListener('mousedown', function(e) {
-      if (e.button === 0) press(e);
-    });
+    btn.addEventListener('mousedown', press);
     window.addEventListener('mouseup', release);
   }
 
