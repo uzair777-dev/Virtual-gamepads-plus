@@ -70,6 +70,13 @@ if [ -f "$ICON_FILE" ]; then
     gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
 fi
 
+# Clean up PATH export lines from shell config files
+for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    if [ -f "$rc" ]; then
+        sed -i '\|\.local/bin|d' "$rc" 2>/dev/null || true
+    fi
+done
+
 # 4. Ask about system-level cleanup (udev rule, firewall)
 echo "[4/5] System-level cleanup..."
 remove_system="n"
