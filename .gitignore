@@ -3,6 +3,7 @@ presets/
 !presets/wheel/
 !presets/wheel/default.json
 ssl/
+ssl_test/
 __pycache__/
 .venv/
 build/
@@ -12,5 +13,7 @@ build/Debug/
 *.o
 *.so
 *.a
-.vgp_qrcode_user.png
-
+.vgp_qrcode*.png
+*.log
+Node Virtual Gamepads*.desktop
+server_debug.js

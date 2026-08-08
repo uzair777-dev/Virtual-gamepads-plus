@@ -11,17 +11,6 @@ for cmd in node npm ip openssl make g++; do
 	fi
 done
 
-# Check for AppIndicator3 GIR (needed for GUI tray icon)
-if ! python3 -c "import gi; gi.require_version('AppIndicator3', '0.1')" 2>/dev/null; then
-    if command -v apt-get &>/dev/null; then
-        sudo apt-get install -y gir1.2-appindicator3-0.1 2>/dev/null
-    elif command -v dnf &>/dev/null; then
-        sudo dnf install -y libappindicator-gtk3 2>/dev/null
-    elif command -v pacman &>/dev/null; then
-        sudo pacman -S --needed --noconfirm libappindicator-gtk3 2>/dev/null
-    fi
-fi
-
 if [ -n "$MISSING_DEPS" ]; then
 	echo "Error: The following required system dependencies are missing:$MISSING_DEPS"
 	echo ""
@@ -100,67 +89,66 @@ else
     echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
 fi
 
-# Ensure port is completely free before starting
+# Ensure user's own processes on port are stopped before starting
 if command -v fuser &>/dev/null; then
-    sudo fuser -k -s ${PORT}/tcp &>/dev/null || true
+    fuser -k -s ${PORT}/tcp &>/dev/null || true
+fi
+
+# Function to safely handle non-blocking sudo firewall commands
+CAN_SUDO_NONINTERACTIVE=0
+if sudo -n true 2>/dev/null; then
+    CAN_SUDO_NONINTERACTIVE=1
 fi
 
 cleanup() {
 	trap - EXIT INT TERM HUP
-    if [ -z "$GUI_MODE" ]; then
-	    echo "Closing ports..."
-    fi
-	if command -v firewall-cmd &>/dev/null; then
-		sudo firewall-cmd --remove-port=$PORT/tcp > /dev/null 2>&1
-		sudo firewall-cmd --remove-port=80/tcp > /dev/null 2>&1
-		sudo firewall-cmd --remove-port=8080/tcp > /dev/null 2>&1
-	elif command -v ufw &>/dev/null; then
-		sudo ufw delete allow $PORT/tcp > /dev/null 2>&1
-		sudo ufw delete allow 80/tcp > /dev/null 2>&1
-		sudo ufw delete allow 8080/tcp > /dev/null 2>&1
-	elif command -v iptables &>/dev/null; then
-		sudo iptables -D INPUT -p tcp --dport $PORT -j ACCEPT > /dev/null 2>&1 || true
-		sudo iptables -D INPUT -p tcp --dport 80 -j ACCEPT > /dev/null 2>&1 || true
-		sudo iptables -D INPUT -p tcp --dport 8080 -j ACCEPT > /dev/null 2>&1 || true
-	fi
     
-    # Ensure all server processes are killed
+    # Only touch firewall ports on cleanup if we modified them and have non-interactive sudo
+    if [ $CAN_SUDO_NONINTERACTIVE -eq 1 ]; then
+        if command -v firewall-cmd &>/dev/null; then
+            sudo firewall-cmd --remove-port=$PORT/tcp > /dev/null 2>&1 || true
+            sudo firewall-cmd --remove-port=80/tcp > /dev/null 2>&1 || true
+            sudo firewall-cmd --remove-port=8080/tcp > /dev/null 2>&1 || true
+        elif command -v ufw &>/dev/null; then
+            sudo ufw delete allow $PORT/tcp > /dev/null 2>&1 || true
+            sudo ufw delete allow 80/tcp > /dev/null 2>&1 || true
+            sudo ufw delete allow 8080/tcp > /dev/null 2>&1 || true
+        elif command -v iptables &>/dev/null; then
+            sudo iptables -D INPUT -p tcp --dport $PORT -j ACCEPT > /dev/null 2>&1 || true
+            sudo iptables -D INPUT -p tcp --dport 80 -j ACCEPT > /dev/null 2>&1 || true
+            sudo iptables -D INPUT -p tcp --dport 8080 -j ACCEPT > /dev/null 2>&1 || true
+        fi
+    fi
+    
+    # Kill remaining user processes on port
     if command -v fuser &>/dev/null; then
-        sudo fuser -k -s ${PORT}/tcp &>/dev/null || true
-        sudo fuser -k -s 80/tcp &>/dev/null || true
-        sudo fuser -k -s 8080/tcp &>/dev/null || true
+        fuser -k -s ${PORT}/tcp &>/dev/null || true
     fi
 }
 
 trap cleanup EXIT INT TERM HUP
 
-if command -v firewall-cmd &>/dev/null; then
-    if [ -z "$GUI_MODE" ]; then
-	    echo "Temporarily opening ports in firewalld..."
-    fi
-	sudo firewall-cmd --add-port=$PORT/tcp > /dev/null
-	sudo firewall-cmd --add-port=80/tcp > /dev/null 2>&1 || true
-	sudo firewall-cmd --add-port=8080/tcp > /dev/null 2>&1 || true
-elif command -v ufw &>/dev/null; then
-    if [ -z "$GUI_MODE" ]; then
-	    echo "Temporarily opening ports in ufw..."
-    fi
-	sudo ufw allow $PORT/tcp > /dev/null
-	sudo ufw allow 80/tcp > /dev/null 2>&1 || true
-	sudo ufw allow 8080/tcp > /dev/null 2>&1 || true
-elif command -v iptables &>/dev/null; then
-    if [ -z "$GUI_MODE" ]; then
-	    echo "Temporarily opening ports in iptables..."
-    fi
-	sudo iptables -A INPUT -p tcp --dport $PORT -j ACCEPT > /dev/null 2>&1 || true
-	sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT > /dev/null 2>&1 || true
-	sudo iptables -A INPUT -p tcp --dport 8080 -j ACCEPT > /dev/null 2>&1 || true
-elif grep -qE "ID=void|ID_LIKE=void" /etc/os-release 2>/dev/null || command -v xbps-install &>/dev/null; then
-    if [ -z "$GUI_MODE" ]; then
-	    echo "Void Linux detected. Void Linux does not ship with a default active firewall."
-	    echo "If using iptables, allow ports with:"
-	    echo "  sudo iptables -A INPUT -p tcp --dport $PORT -j ACCEPT"
-	    echo "Then install runit-iptables to save and restore rules across reboots."
+# Dynamically authorize firewall ports ONLY if we have non-interactive sudo access
+if [ $CAN_SUDO_NONINTERACTIVE -eq 1 ]; then
+    if command -v firewall-cmd &>/dev/null; then
+        sudo firewall-cmd --add-port=$PORT/tcp > /dev/null 2>&1 || true
+        sudo firewall-cmd --add-port=80/tcp > /dev/null 2>&1 || true
+        sudo firewall-cmd --add-port=8080/tcp > /dev/null 2>&1 || true
+    elif command -v ufw &>/dev/null; then
+        sudo ufw allow $PORT/tcp > /dev/null 2>&1 || true
+        sudo ufw allow 80/tcp > /dev/null 2>&1 || true
+        sudo ufw allow 8080/tcp > /dev/null 2>&1 || true
+    elif command -v iptables &>/dev/null; then
+        sudo iptables -A INPUT -p tcp --dport $PORT -j ACCEPT > /dev/null 2>&1 || true
+        sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT > /dev/null 2>&1 || true
+        sudo iptables -A INPUT -p tcp --dport 8080 -j ACCEPT > /dev/null 2>&1 || true
+    elif grep -qE "ID=void|ID_LIKE=void" /etc/os-release 2>/dev/null || command -v xbps-install &>/dev/null; then
+        if [ -z "$GUI_MODE" ]; then
+            echo "Void Linux detected. Void Linux does not ship with a default active firewall."
+            echo "If using iptables, allow ports with:"
+            echo "  sudo iptables -A INPUT -p tcp --dport $PORT -j ACCEPT"
+            echo "Then install runit-iptables to save and restore rules across reboots."
+        fi
     fi
 fi
 
@@ -185,8 +173,22 @@ if [ -w "/dev/uinput" ] && [ "${PORT:-8080}" -ge 1024 ]; then
     fi
     env $HOT_RELOAD_ENV $DEBUG_ENV $(which node) "$SCRIPT_DIR/main.js"
 else
-    if [ -z "$GUI_MODE" ]; then
-        echo "Running server with sudo (/dev/uinput permission required or low port < 1024)..."
+    # Need elevated privileges — use sudo only if non-interactive sudo is available,
+    # otherwise the GUI already launched via pkexec (gui.py handles that path)
+    if [ $CAN_SUDO_NONINTERACTIVE -eq 1 ]; then
+        if [ -z "$GUI_MODE" ]; then
+            echo "Running server with sudo (/dev/uinput permission required or low port < 1024)..."
+        fi
+        sudo bash -c "$HOT_RELOAD_ENV $DEBUG_ENV $(which node) $SCRIPT_DIR/main.js"
+    else
+        # GUI mode: gui.py already handled elevation via pkexec before launching run.sh
+        # CLI mode: inform the user they need to fix permissions
+        if [ -z "$GUI_MODE" ]; then
+            echo "Error: Cannot access /dev/uinput and sudo requires a password."
+            echo "Run './install.sh' once to set up passwordless access, then try again."
+            exit 1
+        fi
+        # In GUI mode: pkexec already elevated us, just run directly
+        env $HOT_RELOAD_ENV $DEBUG_ENV $(which node) "$SCRIPT_DIR/main.js"
     fi
-    sudo bash -c "$HOT_RELOAD_ENV $DEBUG_ENV $(which node) $SCRIPT_DIR/main.js"
 fi

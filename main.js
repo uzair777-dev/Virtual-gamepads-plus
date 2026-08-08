@@ -80,7 +80,13 @@ Virtual gamepad application
       earlyDeathCount = 0;
       setTimeout(function() {
         log("info", "[AUTO-HEAL] Restarting server after self-healing...");
-        try { server.start(); } catch(e) { log("error", "[AUTO-HEAL] Restart failed: " + e.message); }
+        try {
+          if (!server.running) {
+            server.start();
+          } else {
+            log("info", "[AUTO-HEAL] Server process was already restarted by monitor.");
+          }
+        } catch(e) { log("error", "[AUTO-HEAL] Restart failed: " + e.message); }
       }, 2000);
       return;
     }

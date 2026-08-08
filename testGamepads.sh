@@ -1,9 +1,8 @@
 #!/bin/bash
 
-# Ensure fzf is installed
+# Check for fzf optional helper
 if ! command -v fzf &>/dev/null; then
-	echo "\"fzf\" could not be found. Please install it first."
-	exit 1
+	echo "Note: 'fzf' is not installed. Falling back to standard menu selection."
 fi
 
 # Find all gamepad devices in /dev/input
@@ -15,7 +14,7 @@ if [ -z "$gamepads" ]; then
 	read -r
 	exit
 elif [ "$(echo "$gamepads" | wc -l)" -eq 1 ]; then
-	echo "󰊖 Only one gamepad found, it will be opened."
+	echo "Only one gamepad found, it will be opened."
 	trap 'clear && echo "Interrupted. Exiting..." && exit 1' INT
 	jstest "$gamepads"
 	trap - INT
@@ -31,14 +30,14 @@ done
 function selectGamepad() {
 	clear
 
-	# Select a gamepad using fzf
+	# Select a gamepad using fzf if available, else standard bash select
 	if command -v fzf > /dev/null; then
 		selected=$(printf "%s\n" "${array[@]}" | fzf --prompt "Select a gamepad: " --height 10 --cycle | awk -F" " '{print $2 - 1}')
 	else
 		PS3="Select a gamepad: "
 		select gamepad in "${array[@]}"; do
 			if [[ -n $gamepad ]]; then
-				selected=$(echo "$REPLY - 1" | bc)
+				selected=$((REPLY - 1))
 				break
 			else
 				echo "Invalid selection, please try again."

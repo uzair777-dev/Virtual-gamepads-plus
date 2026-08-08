@@ -32,10 +32,6 @@ except ImportError:
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.expanduser('~/.config/virtual-gamepads-gui.json')
 
-# X11 & Wayland application ID binding for panel/dock icon mapping
-GLib.set_prgname("virtual-gamepads-plus")
-GLib.set_application_name("Virtual Gamepads Plus")
-
 def ensure_wayland_panel_icon():
     png_src = os.path.join(SCRIPT_DIR, 'public', 'branding', 'wheel_logo.png')
     if not os.path.exists(png_src):
@@ -54,6 +50,9 @@ def ensure_wayland_panel_icon():
     # 2. Ensure .desktop file exists with StartupWMClass so Wayland panels (GNOME, KDE, Hyprland, Sway) match the window
     apps_dir = os.path.expanduser('~/.local/share/applications')
     desktop_file = os.path.join(apps_dir, 'virtual-gamepads-plus.desktop')
+    if os.path.exists(desktop_file):
+        return
+
     try:
         os.makedirs(apps_dir, exist_ok=True)
         gui_py_path = os.path.join(SCRIPT_DIR, 'gui.py')
@@ -250,6 +249,8 @@ class VirtualGamepadsGUI(Gtk.Window):
         if self.debug_toggle.get_active():
             cmd.append('--debug')
         
+        self.last_cmd = cmd
+
         try:
             self.server_process = subprocess.Popen(
                 cmd,
@@ -320,7 +321,6 @@ class VirtualGamepadsGUI(Gtk.Window):
         if HAS_SEGNO:
             try:
                 # Store QR code in the script directory to avoid /tmp permission conflicts
-                SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
                 tmp_qr_path = os.path.join(SCRIPT_DIR, ".vgp_qrcode_user.png")
                 
                 qr = segno.make(url)

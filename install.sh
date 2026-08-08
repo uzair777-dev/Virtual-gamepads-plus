@@ -33,7 +33,7 @@ if [ "$(uname -s)" != "Linux" ]; then
 fi
 
 # Check for existing installation and prompt for update
-if [ -d "$INSTALL_TARGET_DIR/node_modules" ] && [ -f "$INSTALL_TARGET_DIR/server.js" ]; then
+if [ -d "$INSTALL_TARGET_DIR" ] && [ -f "$INSTALL_TARGET_DIR/server.js" ]; then
     echo "Virtual Gamepads Plus is already installed at:"
     echo "  $INSTALL_TARGET_DIR"
     echo ""
@@ -307,17 +307,21 @@ sudo chown -R "$USER:$USER" ssl 2>/dev/null || true
 chmod 755 ssl 2>/dev/null || true
 chmod 644 ssl/* 2>/dev/null || true
 
-# Permanent Firewall Port Authorization (8080/80)
+# Permanent Firewall Port Authorization (default 8080/80 + custom config port)
+CUSTOM_PORT=$(node -e "console.log(require('./config.json').port)" 2>/dev/null || echo "8080")
 if command -v firewall-cmd &>/dev/null; then
     sudo firewall-cmd --permanent --add-port=8080/tcp >/dev/null 2>&1 || true
     sudo firewall-cmd --permanent --add-port=80/tcp >/dev/null 2>&1 || true
+    [ "$CUSTOM_PORT" != "8080" ] && [ "$CUSTOM_PORT" != "80" ] && sudo firewall-cmd --permanent --add-port=$CUSTOM_PORT/tcp >/dev/null 2>&1 || true
     sudo firewall-cmd --reload >/dev/null 2>&1 || true
 elif command -v ufw &>/dev/null; then
     sudo ufw allow 8080/tcp >/dev/null 2>&1 || true
     sudo ufw allow 80/tcp >/dev/null 2>&1 || true
+    [ "$CUSTOM_PORT" != "8080" ] && [ "$CUSTOM_PORT" != "80" ] && sudo ufw allow $CUSTOM_PORT/tcp >/dev/null 2>&1 || true
 elif command -v iptables &>/dev/null; then
     sudo iptables -A INPUT -p tcp --dport 8080 -j ACCEPT >/dev/null 2>&1 || true
     sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT >/dev/null 2>&1 || true
+    [ "$CUSTOM_PORT" != "8080" ] && [ "$CUSTOM_PORT" != "80" ] && sudo iptables -A INPUT -p tcp --dport $CUSTOM_PORT -j ACCEPT >/dev/null 2>&1 || true
 fi
 
 # Grant low-port capability to Node.js binary if setcap is available
