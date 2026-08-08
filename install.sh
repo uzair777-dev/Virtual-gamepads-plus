@@ -282,21 +282,27 @@ sudo chown -R "$USER:$USER" ssl 2>/dev/null || true
 chmod 755 ssl 2>/dev/null || true
 chmod 644 ssl/* 2>/dev/null || true
 
-# Pre-authorize firewall ports permanently (default 8080/80 + custom port from config.json)
-CUSTOM_PORT=$(node -e "console.log(require('./config.json').port)" 2>/dev/null || echo "8080")
+# Pre-authorize firewall ports permanently (8443/tcp, 8080/tcp, 80/tcp + custom port range 8000-8090/tcp)
+CUSTOM_PORT=$(node -e "console.log(require('./config.json').port)" 2>/dev/null || echo "8443")
 if command -v firewall-cmd &>/dev/null; then
+    sudo firewall-cmd --permanent --add-port=8443/tcp >/dev/null 2>&1 || true
     sudo firewall-cmd --permanent --add-port=8080/tcp >/dev/null 2>&1 || true
     sudo firewall-cmd --permanent --add-port=80/tcp >/dev/null 2>&1 || true
-    [ "$CUSTOM_PORT" != "8080" ] && [ "$CUSTOM_PORT" != "80" ] && sudo firewall-cmd --permanent --add-port=$CUSTOM_PORT/tcp >/dev/null 2>&1 || true
+    sudo firewall-cmd --permanent --add-port=8000-8090/tcp >/dev/null 2>&1 || true
+    [ -n "$CUSTOM_PORT" ] && sudo firewall-cmd --permanent --add-port=$CUSTOM_PORT/tcp >/dev/null 2>&1 || true
     sudo firewall-cmd --reload >/dev/null 2>&1 || true
 elif command -v ufw &>/dev/null; then
+    sudo ufw allow 8443/tcp >/dev/null 2>&1 || true
     sudo ufw allow 8080/tcp >/dev/null 2>&1 || true
     sudo ufw allow 80/tcp >/dev/null 2>&1 || true
-    [ "$CUSTOM_PORT" != "8080" ] && [ "$CUSTOM_PORT" != "80" ] && sudo ufw allow $CUSTOM_PORT/tcp >/dev/null 2>&1 || true
+    sudo ufw allow 8000:8090/tcp >/dev/null 2>&1 || true
+    [ -n "$CUSTOM_PORT" ] && sudo ufw allow $CUSTOM_PORT/tcp >/dev/null 2>&1 || true
 elif command -v iptables &>/dev/null; then
+    sudo iptables -A INPUT -p tcp --dport 8443 -j ACCEPT >/dev/null 2>&1 || true
     sudo iptables -A INPUT -p tcp --dport 8080 -j ACCEPT >/dev/null 2>&1 || true
     sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT >/dev/null 2>&1 || true
-    [ "$CUSTOM_PORT" != "8080" ] && [ "$CUSTOM_PORT" != "80" ] && sudo iptables -A INPUT -p tcp --dport $CUSTOM_PORT -j ACCEPT >/dev/null 2>&1 || true
+    sudo iptables -A INPUT -p tcp --dport 8000:8090 -j ACCEPT >/dev/null 2>&1 || true
+    [ -n "$CUSTOM_PORT" ] && sudo iptables -A INPUT -p tcp --dport $CUSTOM_PORT -j ACCEPT >/dev/null 2>&1 || true
 fi
 
 # Grant low-port capability (cap_net_bind_service) to Node.js binary if setcap is available
