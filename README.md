@@ -54,20 +54,20 @@ View [TODO](#todo) for Upcoming stuffs, or stuff I gave up on
 
 ### Controller Web Interfaces
 
-#### 🏠 Controller Menu
+#### Controller Menu
 ![Web Menu](public/images/screenshots/menu_webpage.jpg)
 
-#### 🏎️ Virtual Racing Wheel
+#### Virtual Racing Wheel
 | Dark Theme | Light Theme | AMOLED Black |
 | :---: | :---: | :---: |
 | ![Wheel Dark](public/images/screenshots/steering_dark.jpg) | ![Wheel Light](public/images/screenshots/steering_white.jpg) | ![Wheel AMOLED](public/images/screenshots/steering_black.jpg) |
 
-#### 🎮 Xbox Gamepad
+#### Xbox Gamepad
 | Dark Theme | Light Theme | AMOLED Black |
 | :---: | :---: | :---: |
 | ![Xbox Dark](public/images/screenshots/xbox_dark.jpg) | ![Xbox Light](public/images/screenshots/xbox_light.jpg) | ![Xbox AMOLED](public/images/screenshots/xbox_black.jpg) |
 
-#### 🖱️ Touchpad & Keyboard(By older devs(untouched), but still works good!)
+#### Touchpad & Keyboard(By older devs(untouched), but still works good!)
 | Touchpad (Dark) | Touchpad (Light) | Virtual Keyboard |
 | :---: | :---: | :---: |
 | ![Touchpad Dark](public/images/screenshots/touchpad_dark.jpg) | ![Touchpad Light](public/images/screenshots/touchpad_light.jpg) | ![Keyboard](public/images/screenshots/keyboard_light.jpg) |
