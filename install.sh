@@ -21,12 +21,14 @@ NEEDS_RELOGIN=0
 # Formatting helper (ANSI colors when running interactively in terminal)
 if [ -t 1 ]; then
     BOLD="\033[1m"
+    RED="\033[1;31m"
     GREEN="\033[1;32m"
     YELLOW="\033[1;33m"
     BLUE="\033[1;34m"
     RESET="\033[0m"
 else
     BOLD=""
+    RED=""
     GREEN=""
     YELLOW=""
     BLUE=""
@@ -34,6 +36,7 @@ else
 fi
 
 echo -e "${BOLD}Virtual Gamepads Plus Installer${RESET}"
+echo -e "${RED}DO NOT PANIC IF IT LOOKS STUCK (or do if is going on for way long time, not my problem though (hopefully))${RESET}"
 echo ""
 
 # Ensure running on Linux
@@ -42,9 +45,32 @@ if [ "$(uname -s)" != "Linux" ]; then
     exit 1
 fi
 
+# Clean up old legacy installation paths and launchers
+cleanup_legacy_installation() {
+    local legacy_dir="$HOME/.local/share/Virtual-GamePad"
+    if [ -d "$legacy_dir" ]; then
+        echo -e "${YELLOW}Cleaning up legacy installation directory at $legacy_dir...${RESET}"
+        rm -rf "$legacy_dir"
+    fi
+
+    # Remove legacy desktop launchers and icons
+    rm -f "$HOME/.local/share/applications/VGamepadPC.desktop" \
+          "$HOME/.local/share/applications/Virtual-GamePad.desktop" \
+          "$HOME/.local/share/applications/virtual-gamepad.desktop" \
+          "$HOME/.local/share/applications/virtual-gamepads.desktop" 2>/dev/null || true
+
+    rm -f "$HOME/.local/share/icons/hicolor/"*"/apps/VGamepadPC."* \
+          "$HOME/.local/share/icons/hicolor/"*"/apps/Virtual-GamePad."* 2>/dev/null || true
+}
+
+cleanup_legacy_installation
+
 # Check for existing installation and prompt for update/reinstall
 if [ -d "$INSTALL_TARGET_DIR" ] && [ -f "$INSTALL_TARGET_DIR/server.js" ]; then
-    echo "Existing installation found at $INSTALL_TARGET_DIR"
+    echo -e "${YELLOW}Existing installation found at $INSTALL_TARGET_DIR${RESET}"
+    echo -e "  ${BOLD}• [U]pdate:${RESET}   Updates application files while preserving your settings and preferences."
+    echo -e "  ${BOLD}• [R]einstall:${RESET} Performs a fresh installation and resets configuration settings to default."
+    echo ""
     update_ans="u"
     if [ -t 0 ] || [ -c /dev/tty ]; then
         read -p "Update, Reinstall, or Cancel? [U/r/c] " update_ans < /dev/tty || update_ans="u"
@@ -55,10 +81,12 @@ if [ -d "$INSTALL_TARGET_DIR" ] && [ -f "$INSTALL_TARGET_DIR/server.js" ]; then
         echo "Cancelled."
         exit 0
     elif [[ "$update_ans" =~ ^[Rr]$ ]]; then
-        echo "Removing existing files for reinstall..."
+        echo "Removing existing files and resetting configuration settings for reinstall..."
         rm -rf "$INSTALL_TARGET_DIR"
+        rm -f "$HOME/.config/virtual-gamepads-gui.json"
+        rm -rf "$HOME/.config/virtual-gamepads-plus"
     else
-        echo "Updating existing installation..."
+        echo "Updating existing installation (preserving user configuration)..."
     fi
 fi
 
