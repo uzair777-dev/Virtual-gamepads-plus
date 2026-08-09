@@ -5,21 +5,30 @@
 This repo is a fork of [alr86/node-virtual-gamepads-revived](https://github.com/alr86/node-virtual-gamepads-revived) (which is a fork of [node-virtual-gamepads](https://github.com/jehervy/node-virtual-gamepads)) with ~~some~~ Many changes(just tested in linux, and will only ):
 
 - Shows QR-Code to join 
-- ~~Gyro support~~ [Partial, will be impelmented]
+- ~~Gyro support~~ [Partial, will be impelmented(Thats a big maybe)]
 - Dark Mode
 - An Script to test gamepads [still pending]
-- Better styles
+- Better styles(I'm a developer, not a designer, yeah?)
 - ~~Also have "L2", "R2" & "Menu" buttons~~ [Don't know what they did on the other controller]
 - XBOX-Style buttons layout with xinput support
 - Steering wheel support with genuine steering wheel input
 - ~~PreDefiend `.desktop` files to run script(needs change)~~ 
+  
+**Please note that what the other developer did with other things and stuff, are preserved as it is, as it doesnt conflict with new stuff. I thought It should be there as so that the Mantra of "If it works, dont f\*\*king touch it"**
 
-View [TODO](#todo) for Upcoming stuffs 
+View [TODO](#todo) for Upcoming stuffs, or stuff I gave up on
 
 ## Install and run:
+
+### Automatic one(recommended):
+
 ```bash
     curl -fsSL https://raw.githubusercontent.com/uzair777-dev/Virtual-gamepads-plus/main/install.sh | bash
-    # Or
+```
+
+### Manual one:
+
+```bash
     git clone https://github.com/uzair777-dev/Virtual-gamepads-plus
     cd Virtual-gamepads-plus
     # Make script executable by this command or gui
@@ -30,18 +39,47 @@ View [TODO](#todo) for Upcoming stuffs
     # Or launch in terminal
     ./run.sh     
 ```
+## Screenshots (New Version):
 
+### Desktop Server GUI Manager
+| Server Online (with QR) | Settings Panel |
+| :---: | :---: |
+| ![Server Running](public/images/screenshots/serverui_turnedon.png) | ![Server Settings](public/images/screenshots/serverui_settings%20panel.png) |
 
-> [!WARNING]
-> The below documentation is old but will be replaced only after I implement all the [stuff](#todo) first.
+| Server Offline | System Tray Icon |
+| :---: | :---: |
+| ![Server Offline](public/images/screenshots/serverui_notturnedon.png) | ![System Tray](public/images/screenshots/blurryiconofserverinpanel.png) |
 
+---
+
+### Controller Web Interfaces
+
+#### 🏠 Controller Menu
+![Web Menu](public/images/screenshots/menu_webpage.jpg)
+
+#### 🏎️ Virtual Racing Wheel
+| Dark Theme | Light Theme | AMOLED Black |
+| :---: | :---: | :---: |
+| ![Wheel Dark](public/images/screenshots/steering_dark.jpg) | ![Wheel Light](public/images/screenshots/steering_white.jpg) | ![Wheel AMOLED](public/images/screenshots/steering_black.jpg) |
+
+#### 🎮 Xbox Gamepad
+| Dark Theme | Light Theme | AMOLED Black |
+| :---: | :---: | :---: |
+| ![Xbox Dark](public/images/screenshots/xbox_dark.jpg) | ![Xbox Light](public/images/screenshots/xbox_light.jpg) | ![Xbox AMOLED](public/images/screenshots/xbox_black.jpg) |
+
+#### 🖱️ Touchpad & Keyboard
+| Touchpad (Dark) | Touchpad (Light) | Virtual Keyboard |
+| :---: | :---: | :---: |
+| ![Touchpad Dark](public/images/screenshots/touchpad_dark.jpg) | ![Touchpad Light](public/images/screenshots/touchpad_light.jpg) | ![Keyboard](public/images/screenshots/keyboard_light.jpg) |
+
+---
 
 ## Old ScreenShot:
 (Red L2-R2 Buttons over D-pad only works when gyro enabled)
 
 ![Standalone installation step 1](https://github.com/uzair777-dev/Virtual-gamepads-plus/blob/main/public/images/screenshot.jpg?raw=true)
 ---
-## Node-Virtual-Gamepads ReadMe:
+## Node-Virtual-Gamepads ReadMe (Now updated for Virtual Gamepad Plus):
 
 This nodejs application turns your smartphone into a gamepad controller only GNU/Linux OS simply by reaching a local address.
 You can virtually plug in multiple gamepad controllers.
@@ -54,9 +92,9 @@ Original Demo video 3 players on EmulStation [here](https://www.youtube.com/watc
 
 Prerequisite
 ------------
-This application is only compatible with Linux OSes with the **uinput** kernel module installed, Which most of them do. 
 
-This is only supposed to work in Linux and linux only. It isn't intended for other OSes
+> [!WARNING]
+> This application is only compatible with Linux OSes with the **uinput** kernel module installed, Which most of them do. 
 
 If you encounter problems while installing or running node-virtual-gamepads have
 a look at the [troubleshooting](TROUBLESHOOTING.md) page.
@@ -64,15 +102,6 @@ a look at the [troubleshooting](TROUBLESHOOTING.md) page.
 You can now configure the server to your needs. Just open `config.json`
 with the editor of you choice and adjust the values. Explanation of the
 individual values can be found in [README_CONFIG.md](README_CONFIG.md).
-
-Usage
------
-```bash 
-   
-   ./launch_gui.sh # Execute the server GUI (RECOMMENDED)
-   ./run.sh # execute the command only inside the directory
-
-```
 
 ## Features
 --------
@@ -95,13 +124,38 @@ To know if we pressed a button with success, the web application provides an hap
 which can be easily deactivated by turning off the vibrations of the phone.
 
 ### Use the keyboard to enter text
-![Virtual Keyboard](https://github.com/miroof/node-virtual-gamepads/blob/resources/screenshots/keyboard.png?raw=true)
+![Virtual Keyboard](https://github.com/uzair777-dev/Virtual-gamepads-plus/blob/main/public/images/screenshots/keyboard_light.jpg?raw=true)
 
 ### Use the touchpad for mouse inputs
-![Virtual Touchpad](https://github.com/miroof/node-virtual-gamepads/blob/resources/screenshots/touchpad.png?raw=true)
+![Virtual Touchpad](https://github.com/uzair777-dev/Virtual-gamepads-plus/blob/main/public/images/screenshots/touchpad_light.jpg?raw=true)
 
 ### An index page lets you choose
-![Index page](https://github.com/miroof/node-virtual-gamepads/blob/resources/screenshots/index.png?raw=true)
+![Index page](https://github.com/uzair777-dev/Virtual-gamepads-plus/blob/main/public/images/screenshots/menu_webpage.jpg?raw=true)
+
+### Proper GTK Desktop Manager (finally no terminal-only struggle)
+Got tired of running everything through terminal commands all the time, so I built a proper GTK GUI (`./launch_gui.sh`). It shows the status (Online/Starting/Offline), generates a QR code right on the screen so you just scan and connect on your phone, lets you set custom server ports, and even has a settings modal with system tray minimization support. Plus, all icons adapt automatically if you use light or dark GTK themes.
+
+![Server GUI Manager](public/images/screenshots/serverui_turnedon.png)
+
+![Server Settings Panel](public/images/screenshots/serverui_settings%20panel.png)
+
+### Virtual Steering Wheel (with actual analog steering & pedals)
+Wanted a proper racing wheel setup for sim games, so now there's a real virtual wheel mode with continuous analog steering axis! Also includes customizable throttle, brake, and clutch pedals (with adjustable pressure ramp speeds so it doesn't just snap to 100% instantly), camera joysticks, paddle shifters, and button mapping.
+
+![Virtual Racing Wheel](public/images/screenshots/steering_dark.jpg)
+
+### Custom SVG Button Icons in Wheel Layout
+You can pick custom SVG icons for your wheel buttons right from the edit menu (scanned dynamically from the server folder), complete with live mini previews in the settings menu. Just drop any `.svg` in `public/images/icons/buttons/` and it shows up.
+
+### Multiple Theme Modes (AMOLED, Dark & Light)
+Added theme options because bright white screens at night hurt. You can toggle between AMOLED Black (saves battery on OLED phones), Dark Mode, and Light Mode for all controllers (Wheel, Xbox Gamepad, Touchpad, Keyboard).
+
+| Dark Theme | Light Theme | AMOLED Black |
+| :---: | :---: | :---: |
+| ![Xbox Dark](public/images/screenshots/xbox_dark.jpg) | ![Xbox Light](public/images/screenshots/xbox_light.jpg) | ![Xbox AMOLED](public/images/screenshots/xbox_black.jpg) |
+
+### One-Command Auto Installer
+Made `install.sh` handle uinput permissions, dependencies, desktop launcher shortcuts, and firewall rules automatically across Fedora, Arch, Ubuntu (, and /) Debian, Void, and Atomic distros (Bazzite/Silverblue/SteamOS). It should technically support most of their derivatives too, But idk, shit always breaks in all fun ways. Also, Gentoo users, I hatingly love you. I can't explain how i bashed my head against wall trying to get it to work for you guys. But as it stands, I, too am incapable of some stuff, or i might just be dumb, idk
 
 ## Developing
 ----------
@@ -179,7 +233,7 @@ If you want do add a new keyboard layout please refer to [this file](CREATE_KEYB
     
 11) Documentation:
     - [ ] Some documentation as needed
-    - [ ] Add pictures of the new version 
+    - [x] Add pictures of the new version 
 
 12) Installation:
     - [x] Install script that does most of the work
