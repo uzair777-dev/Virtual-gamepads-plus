@@ -2,7 +2,7 @@
 
 ![Virtual gamepad](https://github.com/uzair777-dev/Virtual-gamepads-plus/blob/main/public/branding/github_banner.png?raw=true)
 
-This repo is a fork of [alr86/node-virtual-gamepads-revived](https://github.com/alr86/node-virtual-gamepads-revived) (which is a fork of [node-virtual-gamepads](https://github.com/jehervy/node-virtual-gamepads)) with ~~some~~ Many changes(just tested in linux, and will only ):
+This repo is a fork of [alr86/node-virtual-gamepads-revived](https://github.com/alr86/node-virtual-gamepads-revived) (which is a fork of [jehervy/node-virtual-gamepads](https://github.com/jehervy/node-virtual-gamepads)) with ~~some~~ Many changes(just tested in linux, and will only ):
 
 - Shows QR-Code to join 
 - ~~Gyro support~~ [Partial, will be impelmented(Thats a big maybe)]
