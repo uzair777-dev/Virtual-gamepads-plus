@@ -32,6 +32,61 @@ except ImportError:
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.expanduser('~/.config/virtual-gamepads-gui.json')
 
+import re
+
+def is_dark_theme(widget=None):
+    """Detect whether current GTK desktop theme is dark or light mode across GNOME, KDE, and XFCE."""
+    try:
+        from gi.repository import Gio
+        gsettings = Gio.Settings.new("org.gnome.desktop.interface")
+        if gsettings:
+            scheme = gsettings.get_string("color-scheme")
+            if "dark" in scheme.lower():
+                return True
+    except Exception:
+        pass
+
+    try:
+        settings = Gtk.Settings.get_default()
+        if settings:
+            if settings.get_property("gtk-application-prefer-dark-theme"):
+                return True
+            theme_name = settings.get_property("gtk-theme-name") or ""
+            if "dark" in theme_name.lower():
+                return True
+    except Exception:
+        pass
+
+    if widget:
+        try:
+            ctx = widget.get_style_context()
+            fg = ctx.get_color(Gtk.StateFlags.NORMAL)
+            # In GTK, fg is text color. White text (luminance > 0.5) indicates a dark theme
+            luminance = 0.2126 * fg.red + 0.7152 * fg.green + 0.0722 * fg.blue
+            if luminance > 0.5:
+                return True
+        except Exception:
+            pass
+
+    return False
+
+def load_colored_svg_pixbuf(svg_path, width, height, is_dark=False):
+    """Load SVG icon dynamically recolored black for light theme, white for dark theme."""
+    try:
+        with open(svg_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        target_color = "#FFFFFF" if is_dark else "#000000"
+        content = re.sub(r'stroke=["\'](?:#000(?:000)?|black)["\']', f'stroke="{target_color}"', content, flags=re.IGNORECASE)
+        content = re.sub(r'fill=["\'](?:#000(?:000)?|black)["\']', f'fill="{target_color}"', content, flags=re.IGNORECASE)
+
+        loader = GdkPixbuf.PixbufLoader.new_with_type("svg")
+        loader.set_size(width, height)
+        loader.write(content.encode('utf-8'))
+        loader.close()
+        return loader.get_pixbuf()
+    except Exception:
+        return GdkPixbuf.Pixbuf.new_from_file_at_scale(svg_path, width, height, True)
+
 def ensure_wayland_panel_icon():
     png_src = os.path.join(SCRIPT_DIR, 'public', 'branding', 'wheel_logo.png')
     if not os.path.exists(png_src):
@@ -79,17 +134,14 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.set_default_size(600, 500)
         self.set_border_width(10)
 
-        # Set Window & Application Icon for X11 & Wayland (PNG format for Wayland compositors)
-        png_path = os.path.join(SCRIPT_DIR, 'public', 'branding', 'wheel_logo.png')
-        ico_path = os.path.join(SCRIPT_DIR, 'public', 'branding', 'wheel_logo.ico')
-        icon_path = png_path if os.path.exists(png_path) else ico_path
-
-        if os.path.exists(icon_path):
+        # Set Window Icon (theme-adaptive gear.svg icon)
+        gear_icon_path = os.path.join(SCRIPT_DIR, 'public', 'images', 'icons', 'gear.svg')
+        if os.path.exists(gear_icon_path):
             try:
-                self.set_icon_from_file(icon_path)
-                Gtk.Window.set_default_icon_from_file(icon_path)
-            except Exception as e:
-                print(f"Notice: Could not load window icon: {e}")
+                main_icon_pb = load_colored_svg_pixbuf(gear_icon_path, 64, 64, is_dark_theme(self))
+                self.set_icon(main_icon_pb)
+            except Exception:
+                pass
         self.server_process = None
         self.io_watch_id = None
         self.user_stopped = False
@@ -132,43 +184,38 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.stop_btn.connect("clicked", self.on_stop_clicked)
         self.stop_btn.set_sensitive(False)
         button_box.pack_start(self.stop_btn, False, False, 0)
-        
-        # Checkbox controls
-        chk_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        vbox.pack_start(chk_box, False, False, 0)
 
-        # Tray Toggle
-        self.tray_toggle = Gtk.CheckButton(label="Minimise to tray on close")
+        # Gear/Settings button with theme-adaptive gear.svg icon
+        gear_icon_path = os.path.join(SCRIPT_DIR, 'public', 'images', 'icons', 'gear.svg')
+        if os.path.exists(gear_icon_path):
+            try:
+                pixbuf = load_colored_svg_pixbuf(gear_icon_path, 18, 18, is_dark_theme(self))
+                gear_img = Gtk.Image.new_from_pixbuf(pixbuf)
+                self.settings_btn = Gtk.Button()
+                self.settings_btn.set_image(gear_img)
+                self.settings_btn.set_always_show_image(True)
+            except Exception:
+                self.settings_btn = Gtk.Button(label="⚙")
+        else:
+            self.settings_btn = Gtk.Button(label="⚙")
+
+        self.settings_btn.set_tooltip_text("Settings")
+        self.settings_btn.connect("clicked", self.on_settings_clicked)
+        button_box.pack_start(self.settings_btn, False, False, 0)
+        
+        # Control settings references (initialized from config)
+        self.tray_toggle = Gtk.CheckButton()
         self.tray_toggle.set_active(self.config.get('minimise_to_tray', False))
-        self.tray_toggle.connect("toggled", self.on_tray_toggled)
-        if not HAS_APPINDICATOR and not hasattr(Gtk, 'StatusIcon'):
-            self.tray_toggle.set_sensitive(False)
-            self.tray_toggle.set_tooltip_text("System tray is not supported on this desktop environment.")
-        chk_box.pack_start(self.tray_toggle, False, False, 0)
         
-        # Hot Reload Toggle
-        self.hot_reload_toggle = Gtk.CheckButton(label="Hot Reload (watch for file changes)")
+        self.hot_reload_toggle = Gtk.CheckButton()
         self.hot_reload_toggle.set_active(self.config.get('hot_reload', False))
-        self.hot_reload_toggle.connect("toggled", self.on_hot_reload_toggled)
-        chk_box.pack_start(self.hot_reload_toggle, False, False, 0)
-
-        # Debug Toggle
-        self.debug_toggle = Gtk.CheckButton(label="Debug Logging")
+        
+        self.debug_toggle = Gtk.CheckButton()
         self.debug_toggle.set_active(self.config.get('debug', False))
-        self.debug_toggle.connect("toggled", self.on_debug_toggled)
-        chk_box.pack_start(self.debug_toggle, False, False, 0)
-
-        # Custom Port Entry
-        port_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        port_label = Gtk.Label(label="Server Port:")
+        
         self.port_entry = Gtk.Entry()
-        self.port_entry.set_placeholder_text("Default (8443)")
         if self.config.get('custom_port'):
             self.port_entry.set_text(str(self.config['custom_port']))
-        self.port_entry.connect("changed", self.on_port_changed)
-        port_box.pack_start(port_label, False, False, 0)
-        port_box.pack_start(self.port_entry, True, True, 0)
-        chk_box.pack_start(port_box, False, False, 2)
 
         # Log Output
         scrolled_window = Gtk.ScrolledWindow()
@@ -196,7 +243,7 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.connect("delete-event", self.on_delete_event)
         
     def load_config(self):
-        self.config = {'minimise_to_tray': False, 'hot_reload': False, 'debug': False, 'custom_port': ''}
+        self.config = {'minimise_to_tray': False, 'dev_mode': False, 'hot_reload': False, 'debug': False, 'custom_port': ''}
         if os.path.exists(CONFIG_FILE):
             try:
                 with open(CONFIG_FILE, 'r') as f:
@@ -216,6 +263,21 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.config['minimise_to_tray'] = button.get_active()
         self.save_config()
 
+    def on_dev_mode_toggled(self, button):
+        active = button.get_active()
+        self.config['dev_mode'] = active
+        if hasattr(self, 'dev_box'):
+            self.dev_box.set_sensitive(active)
+        if not active:
+            # When developmental options are turned off, reset all sub-settings to defaults (False)
+            if hasattr(self, 'hot_reload_toggle'):
+                self.hot_reload_toggle.set_active(False)
+            if hasattr(self, 'debug_toggle'):
+                self.debug_toggle.set_active(False)
+            self.config['hot_reload'] = False
+            self.config['debug'] = False
+        self.save_config()
+
     def on_hot_reload_toggled(self, button):
         self.config['hot_reload'] = button.get_active()
         self.save_config()
@@ -228,6 +290,151 @@ class VirtualGamepadsGUI(Gtk.Window):
         val = entry.get_text().strip()
         self.config['custom_port'] = val
         self.save_config()
+
+    def prompt_server_restart_if_running(self):
+        """If server process is currently running, prompt user to restart server to apply new settings."""
+        if self.server_process is not None and self.server_process.poll() is None:
+            dialog = Gtk.MessageDialog(
+                transient_for=self,
+                flags=0,
+                message_type=Gtk.MessageType.QUESTION,
+                buttons=Gtk.ButtonsType.YES_NO,
+                text="Restart Server to Apply Settings?"
+            )
+            dialog.format_secondary_text(
+                "You changed server configuration options while the server is running.\n\nWould you like to restart the server now to apply the new settings?"
+            )
+            res = dialog.run()
+            dialog.destroy()
+            if res == Gtk.ResponseType.YES:
+                self.log("[GUI] Restarting server to apply updated settings...\n")
+                self.on_stop_clicked(None)
+                GLib.timeout_add(800, self._restart_server_callback)
+
+    def _restart_server_callback(self):
+        self.on_start_clicked(None)
+        return False
+
+    def on_settings_clicked(self, button):
+        """Open persistent modal settings window blocking main window interaction until closed."""
+        modal_win = Gtk.Window(title="Settings")
+        modal_win.set_transient_for(self)
+        modal_win.set_modal(True)
+        modal_win.set_default_size(420, 340)
+        modal_win.set_position(Gtk.WindowPosition.CENTER_ON_PARENT)
+
+        # Snapshot initial server settings state when modal opens
+        initial_server_settings = (
+            str(self.config.get('custom_port', '')),
+            bool(self.config.get('dev_mode', False)),
+            bool(self.config.get('hot_reload', False)),
+            bool(self.config.get('debug', False))
+        )
+
+        def on_modal_destroy(widget):
+            current_server_settings = (
+                str(self.config.get('custom_port', '')),
+                bool(self.config.get('dev_mode', False)),
+                bool(self.config.get('hot_reload', False)),
+                bool(self.config.get('debug', False))
+            )
+            if current_server_settings != initial_server_settings:
+                self.prompt_server_restart_if_running()
+
+        modal_win.connect("destroy", on_modal_destroy)
+
+        # Set Gear icon for Settings window
+        gear_icon_path = os.path.join(SCRIPT_DIR, 'public', 'images', 'icons', 'gear.svg')
+        is_dark = is_dark_theme(self)
+        if os.path.exists(gear_icon_path):
+            try:
+                gear_pb = load_colored_svg_pixbuf(gear_icon_path, 32, 32, is_dark)
+                modal_win.set_icon(gear_pb)
+            except Exception:
+                pass
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        vbox.set_margin_top(15)
+        vbox.set_margin_bottom(15)
+        vbox.set_margin_start(15)
+        vbox.set_margin_end(15)
+
+        # ==========================================
+        # SECTION 1: Application Settings
+        # ==========================================
+        app_header = Gtk.Label()
+        app_header.set_markup("<b>Application Settings</b>")
+        app_header.set_halign(Gtk.Align.START)
+        vbox.pack_start(app_header, False, False, 0)
+
+        # 1. Minimise to tray on close
+        self.tray_toggle = Gtk.CheckButton(label="Minimise to tray on close")
+        self.tray_toggle.set_active(self.config.get('minimise_to_tray', False))
+        self.tray_toggle.connect("toggled", self.on_tray_toggled)
+        if not HAS_APPINDICATOR and not hasattr(Gtk, 'StatusIcon'):
+            self.tray_toggle.set_sensitive(False)
+            self.tray_toggle.set_tooltip_text("System tray is not supported on this desktop environment.")
+        vbox.pack_start(self.tray_toggle, False, False, 0)
+
+        # 2. Custom Server Port Entry
+        port_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        port_label = Gtk.Label(label="Server Port:")
+        self.port_entry = Gtk.Entry()
+        self.port_entry.set_placeholder_text("Default (8443)")
+        if self.config.get('custom_port'):
+            self.port_entry.set_text(str(self.config['custom_port']))
+        self.port_entry.connect("changed", self.on_port_changed)
+        port_box.pack_start(port_label, False, False, 0)
+        port_box.pack_start(self.port_entry, True, True, 0)
+        vbox.pack_start(port_box, False, False, 2)
+
+        # Visual Separator
+        sep = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+        vbox.pack_start(sep, False, False, 4)
+
+        # ==========================================
+        # SECTION 2: Developmental Stuff
+        # ==========================================
+        dev_header = Gtk.Label()
+        dev_header.set_markup("<b>Developmental Stuff</b>")
+        dev_header.set_halign(Gtk.Align.START)
+        vbox.pack_start(dev_header, False, False, 0)
+
+        # Master Toggle for Developmental Stuff
+        self.dev_mode_toggle = Gtk.CheckButton(label="Enable Developmental Options")
+        self.dev_mode_toggle.set_active(self.config.get('dev_mode', False))
+        self.dev_mode_toggle.connect("toggled", self.on_dev_mode_toggled)
+        vbox.pack_start(self.dev_mode_toggle, False, False, 0)
+
+        # Indented Sub-Box for Developmental Stuff options
+        self.dev_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        self.dev_box.set_margin_start(20)
+
+        # Hot Reload Toggle
+        self.hot_reload_toggle = Gtk.CheckButton(label="Hot Reload (watch for file changes)")
+        self.hot_reload_toggle.set_active(self.config.get('hot_reload', False))
+        self.hot_reload_toggle.connect("toggled", self.on_hot_reload_toggled)
+        self.dev_box.pack_start(self.hot_reload_toggle, False, False, 0)
+
+        # Debug Logging Toggle
+        self.debug_toggle = Gtk.CheckButton(label="Debug Logging")
+        self.debug_toggle.set_active(self.config.get('debug', False))
+        self.debug_toggle.connect("toggled", self.on_debug_toggled)
+        self.dev_box.pack_start(self.debug_toggle, False, False, 0)
+
+        # Enable/Disable dev_box based on master toggle state
+        self.dev_box.set_sensitive(self.dev_mode_toggle.get_active())
+        vbox.pack_start(self.dev_box, False, False, 0)
+
+        # Close button at bottom
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        close_btn = Gtk.Button(label="Close")
+        close_btn.connect("clicked", lambda b: modal_win.destroy())
+        btn_box.pack_end(close_btn, False, False, 0)
+        vbox.pack_end(btn_box, False, False, 0)
+
+        modal_win.add(vbox)
+        modal_win.show_all()
 
     def update_status_label(self, running):
         if running:
@@ -319,10 +526,12 @@ class VirtualGamepadsGUI(Gtk.Window):
             self.is_elevated = True
             self.log("Notice: Running elevated via pkexec. Run ./install.sh to enable passwordless mode.\n\n")
 
-        if self.hot_reload_toggle.get_active():
-            cmd.append('--hot-reload')
-        if self.debug_toggle.get_active():
-            cmd.append('--debug')
+        is_dev_enabled = self.dev_mode_toggle.get_active() if hasattr(self, 'dev_mode_toggle') else self.config.get('dev_mode', False)
+        if is_dev_enabled:
+            if self.hot_reload_toggle.get_active() if hasattr(self, 'hot_reload_toggle') else self.config.get('hot_reload', False):
+                cmd.append('--hot-reload')
+            if self.debug_toggle.get_active() if hasattr(self, 'debug_toggle') else self.config.get('debug', False):
+                cmd.append('--debug')
         
         custom_port_val = self.port_entry.get_text().strip() if hasattr(self, 'port_entry') else ''
         if custom_port_val:
@@ -577,27 +786,43 @@ class VirtualGamepadsGUI(Gtk.Window):
         
         menu.show_all()
 
-        png_path = os.path.join(SCRIPT_DIR, 'public', 'branding', 'wheel_logo.png')
-        ico_path = os.path.join(SCRIPT_DIR, 'public', 'branding', 'wheel_logo.ico')
-        icon_path = png_path if os.path.exists(png_path) else ico_path
-        tray_icon_source = icon_path if os.path.exists(icon_path) else "virtual-gamepads-plus"
+        gamepad_svg_path = os.path.join(SCRIPT_DIR, 'public', 'images', 'icons', 'gamepad-icon.svg')
+        is_dark = is_dark_theme(self)
+        
+        # Load theme-adaptive gamepad SVG icon
+        tray_pixbuf = None
+        if os.path.exists(gamepad_svg_path):
+            try:
+                tray_pixbuf = load_colored_svg_pixbuf(gamepad_svg_path, 24, 24, is_dark)
+            except Exception:
+                pass
+
+        # Prepare image file path for AppIndicator
+        tray_icon_path = ""
+        if tray_pixbuf:
+            try:
+                cache_dir = os.path.expanduser('~/.cache')
+                os.makedirs(cache_dir, exist_ok=True)
+                tray_icon_path = os.path.join(cache_dir, 'virtual-gamepads-tray.png')
+                tray_pixbuf.savev(tray_icon_path, 'png', [], [])
+            except Exception:
+                tray_icon_path = ""
+
+        if not tray_icon_path:
+            png_path = os.path.join(SCRIPT_DIR, 'public', 'branding', 'wheel_logo.png')
+            tray_icon_path = png_path if os.path.exists(png_path) else "virtual-gamepads-plus"
         
         if HAS_APPINDICATOR:
             self.indicator = AppIndicator.Indicator.new(
                 "virtual-gamepads-plus",
-                tray_icon_source,
+                tray_icon_path,
                 AppIndicator.IndicatorCategory.APPLICATION_STATUS
             )
-            # Make the tray icon always visible (ACTIVE) if the Desktop Environment supports it
             self.indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
             self.indicator.set_menu(menu)
         elif hasattr(Gtk, 'StatusIcon'):
-            if os.path.exists(icon_path):
-                try:
-                    pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_path)
-                    self.status_icon = Gtk.StatusIcon.new_from_pixbuf(pixbuf)
-                except Exception:
-                    self.status_icon = Gtk.StatusIcon.new_from_icon_name("input-gamepad")
+            if tray_pixbuf:
+                self.status_icon = Gtk.StatusIcon.new_from_pixbuf(tray_pixbuf)
             else:
                 self.status_icon = Gtk.StatusIcon.new_from_icon_name("input-gamepad")
             self.status_icon.connect("popup-menu", self.on_tray_popup, menu)
