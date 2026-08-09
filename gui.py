@@ -436,11 +436,13 @@ class VirtualGamepadsGUI(Gtk.Window):
         modal_win.add(vbox)
         modal_win.show_all()
 
-    def update_status_label(self, running):
-        if running:
-            self.status_label.set_markup("<span foreground='green'>Status: ● Running</span>")
+    def update_status_label(self, state):
+        if state is True or state == "online":
+            self.status_label.set_markup("<span foreground='green' weight='bold'>Status: ● Online</span>")
+        elif state == "starting":
+            self.status_label.set_markup("<span foreground='#2196F3' weight='bold'>Status: ● Starting...</span>")
         else:
-            self.status_label.set_markup("<span foreground='red'>Status: ● Stopped</span>")
+            self.status_label.set_markup("<span foreground='red' weight='bold'>Status: ● Offline</span>")
 
     def log(self, text):
         end_iter = self.log_buffer.get_end_iter()
@@ -559,7 +561,7 @@ class VirtualGamepadsGUI(Gtk.Window):
                 self.on_server_output
             )
             
-            self.status_label.set_markup("<span foreground='#2196F3' weight='bold'>Starting...</span>")
+            self.update_status_label("starting")
             self.stop_btn.set_sensitive(True)
             if hasattr(self, 'item_stop') and self.item_stop:
                 self.item_stop.set_sensitive(True)
@@ -596,8 +598,9 @@ class VirtualGamepadsGUI(Gtk.Window):
                 self.current_ip = line.split("=")[1].strip()
             elif line.startswith("GUI_PORT="):
                 self.current_port = line.split("=")[1].strip()
-            elif line.startswith("GUI_STATUS=starting"):
+            elif line.startswith("GUI_STATUS=starting") or line.startswith("GUI_STATUS=running") or "HTTPS Server running" in line or "Server listening" in line:
                 self.generate_and_show_qr()
+                self.update_status_label("online")
 
     def generate_and_show_qr(self):
         if not hasattr(self, 'current_ip') or not hasattr(self, 'current_port'):
@@ -605,6 +608,7 @@ class VirtualGamepadsGUI(Gtk.Window):
             
         url = f"https://{self.current_ip}:{self.current_port}"
         self.url_label.set_text(f"URL: {url}")
+        self.update_status_label("online")
         
         if HAS_SEGNO:
             try:
