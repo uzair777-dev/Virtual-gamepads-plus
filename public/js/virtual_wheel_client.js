@@ -604,14 +604,16 @@ window.themes = ['light', 'dark', 'amoled'];
       if (btnData.icon) {
         var img = document.createElement('img');
         img.src = '/images/icons/buttons/' + btnData.icon + '.svg';
-        img.style.width = '60%';
-        img.style.height = '60%';
+        img.style.width = '55%';
+        img.style.height = '55%';
+        img.style.objectFit = 'contain';
         img.style.pointerEvents = 'none';
+        img.className = 'btn-icon-svg';
         el.appendChild(img);
         if (btnData.label) {
           var lbl = document.createElement('span');
           lbl.textContent = btnData.label;
-          lbl.style.fontSize = '0.5rem';
+          lbl.style.fontSize = '0.55rem';
           lbl.style.marginTop = '2px';
           el.appendChild(lbl);
         }
@@ -802,12 +804,14 @@ window.themes = ['light', 'dark', 'amoled'];
       var row = document.createElement('div');
       row.className = 'edit-btn-row';
       var iconOptions = availableIcons.map(ic => `<option value="${ic}" ${btn.icon===ic?'selected':''}>${ic}</option>`).join('');
+      var miniPreview = btn.icon ? `<img src="/images/icons/buttons/${btn.icon}.svg" style="width:20px; height:20px; vertical-align:middle; object-fit:contain; background:rgba(0,0,0,0.06); padding:2px; border-radius:4px;" alt="">` : '';
       row.innerHTML = `
         <input type="text" value="${btn.label||''}" onchange="updateBtn(${idx}, 'label', this.value)" placeholder="Label">
         <select onchange="updateBtn(${idx}, 'icon', this.value)">
           <option value="" ${!btn.icon?'selected':''}>No Icon (text only)</option>
           ${iconOptions}
         </select>
+        ${miniPreview}
         <select onchange="updateBtn(${idx}, 'code', this.value)">
           <option value="0x120" ${btn.code==='0x120'?'selected':''}>Trigger</option>
           <option value="0x121" ${btn.code==='0x121'?'selected':''}>Thumb</option>
