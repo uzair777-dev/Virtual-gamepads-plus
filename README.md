@@ -26,6 +26,8 @@ View [TODO](#todo) for Upcoming stuffs, or stuff I gave up on
     curl -fsSL https://raw.githubusercontent.com/uzair777-dev/Virtual-gamepads-plus/main/install.sh | bash
 ```
 
+Make sure to Restart or relogin afterwards to take effect 
+
 ### Manual one:
 
 ```bash
