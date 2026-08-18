@@ -61,6 +61,11 @@ cleanup_legacy_installation() {
 
     rm -f "$HOME/.local/share/icons/hicolor/"*"/apps/VGamepadPC."* \
           "$HOME/.local/share/icons/hicolor/"*"/apps/Virtual-GamePad."* 2>/dev/null || true
+
+    # Remove stale CLI executables and typo aliases
+    rm -f "$HOME/.local/bin/vpg" \
+          "$HOME/.local/bin/VGamepadPC" \
+          "$HOME/.local/bin/virtual-gamepads" 2>/dev/null || true
 }
 
 cleanup_legacy_installation
@@ -345,6 +350,7 @@ PROJECT_ABS_DIR="$(pwd)"
 
 # Create CLI executable ~/.local/bin/vgp
 mkdir -p "$HOME/.local/bin"
+rm -f "$HOME/.local/bin/vpg" 2>/dev/null || true
 cat << 'WRAPPER_EOF' > "$HOME/.local/bin/vgp"
 #!/bin/bash
 INSTALL_DIR="$HOME/.local/share/virtual-gamepads-plus"
@@ -372,7 +378,6 @@ fi
 exec "$INSTALL_DIR/run.sh" "$@"
 WRAPPER_EOF
 chmod +x "$HOME/.local/bin/vgp"
-ln -sf "$HOME/.local/bin/vgp" "$HOME/.local/bin/vpg"
 
 # Ensure ~/.local/bin is in PATH for bash/zsh shell configuration
 for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
