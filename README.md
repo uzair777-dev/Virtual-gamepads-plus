@@ -35,11 +35,12 @@ Make sure to Restart or relogin afterwards to take effect
     cd Virtual-gamepads-plus
     # Make script executable by this command or gui
     chmod +x launch_gui.sh
-    chmod +x run.sh
-    # Running gui 
+    chmod +x run.sh 
+    # Running gui from terminal
     ./launch_gui.sh
     # Or launch in terminal
-    ./run.sh     
+    ./run.sh
+    # Or just run from the application launcher
 ```
 ## Screenshots (New Version):
 
@@ -96,7 +97,7 @@ Prerequisite
 ------------
 
 > [!WARNING]
-> This application is only compatible with Linux OSes with the **uinput** kernel module installed, Which most of them do. 
+> This application is only compatible with GNU/Linux OSes with the **uinput** kernel module installed, Which most of them do. 
 
 If you encounter problems while installing or running node-virtual-gamepads have
 a look at the [troubleshooting](TROUBLESHOOTING.md) page.
