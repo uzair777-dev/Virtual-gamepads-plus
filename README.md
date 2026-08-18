@@ -53,6 +53,15 @@ vgp
 
 **Or just run from the application launcher**
 
+**To uninstall, just run**
+
+```bash
+    vgp --uninstall
+```
+**Or if it is really broken....**
+```bash
+    curl -fsSL https://raw.githubusercontent.com/uzair777-dev/Virtual-gamepads-plus/main/uninstall.sh | bash
+```
 
 ## Screenshots (New Version):
 
