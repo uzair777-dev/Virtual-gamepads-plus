@@ -34,7 +34,7 @@ Virtual gamepad application
   process.on('uncaughtException', function(err) {
     console.log('[NODE] UNCAUGHT EXCEPTION: ' + err.message);
     console.log('[NODE] Stack: ' + err.stack);
-    // Don't exit — let the forever monitor handle it, but log it
+    // Don't exit — let the process supervisor handle it, but log it
   });
 
   process.on('unhandledRejection', function(reason, promise) {

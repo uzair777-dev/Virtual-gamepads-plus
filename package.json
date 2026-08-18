@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "express": "^4.19.2",
-    "forever-monitor": "^3.0.3",
     "ioctl": "^2.0.2",
     "ref-array-napi": "^1.2.2",
     "ref-napi": "^3.0.3",
