@@ -37,14 +37,18 @@ Make sure to Restart or relogin afterwards to take effect
     chmod +x launch_gui.sh
     chmod +x run.sh 
 ```
-**Running gui from terminal**
+**Running GUI from terminal**
 ```bash
+vgp --gui
+# or
 ./launch_gui.sh
 ```
 
-**Or launch in terminal** 
+**Or launch in CLI mode** 
 ```bash
 vgp
+# or
+./run.sh
 ```
 
 **Or just run from the application launcher**

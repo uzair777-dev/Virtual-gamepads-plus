@@ -8,6 +8,7 @@ set -e
 
 INSTALL_DIR="$HOME/.local/share/virtual-gamepads-plus"
 CLI_WRAPPER="$HOME/.local/bin/vgp"
+CLI_ALIAS="$HOME/.local/bin/vpg"
 DESKTOP_FILE="$HOME/.local/share/applications/virtual-gamepads-plus.desktop"
 ICON_FILE="$HOME/.local/share/icons/hicolor/256x256/apps/virtual-gamepads-plus.png"
 UDEV_RULE="/etc/udev/rules.d/99-uinput.rules"
@@ -59,9 +60,14 @@ fi
 
 # 3. Remove CLI launcher executable, desktop entry, and icon
 echo -e "${BLUE}==>${RESET} ${BOLD}Removing launcher & desktop integrations...${RESET}"
-if [ -f "$CLI_WRAPPER" ]; then
+if [ -f "$CLI_WRAPPER" ] || [ -L "$CLI_WRAPPER" ]; then
     rm -f "$CLI_WRAPPER"
     echo "  Removed $CLI_WRAPPER"
+fi
+
+if [ -f "$CLI_ALIAS" ] || [ -L "$CLI_ALIAS" ]; then
+    rm -f "$CLI_ALIAS"
+    echo "  Removed $CLI_ALIAS"
 fi
 
 if [ -f "$DESKTOP_FILE" ]; then

@@ -358,9 +358,21 @@ if [ "$1" == "--uninstall" ]; then
     fi
 fi
 
+if [ "$1" == "--gui" ] || [ "$1" == "-g" ]; then
+    if [ -f "$INSTALL_DIR/launch_gui.sh" ]; then
+        exec bash "$INSTALL_DIR/launch_gui.sh"
+    elif [ -f "$INSTALL_DIR/gui.py" ]; then
+        exec python3 "$INSTALL_DIR/gui.py"
+    else
+        echo "Error: GUI launcher not found at $INSTALL_DIR/launch_gui.sh"
+        exit 1
+    fi
+fi
+
 exec "$INSTALL_DIR/run.sh" "$@"
 WRAPPER_EOF
 chmod +x "$HOME/.local/bin/vgp"
+ln -sf "$HOME/.local/bin/vgp" "$HOME/.local/bin/vpg"
 
 # Ensure ~/.local/bin is in PATH for bash/zsh shell configuration
 for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
@@ -399,8 +411,8 @@ echo ""
 echo -e "${GREEN}${BOLD}Installation complete!${RESET}"
 echo ""
 echo "Launch using:"
-echo "  vgp           (CLI)"
-echo "  python3 gui.py (GUI)"
+echo "  vgp           (CLI mode)"
+echo "  vgp --gui     (GUI mode)"
 echo "  Or via your system application launcher."
 echo ""
 echo "To uninstall:"
