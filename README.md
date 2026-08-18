@@ -40,15 +40,11 @@ Make sure to Restart or relogin afterwards to take effect
 **Running GUI from terminal**
 ```bash
 vgp --gui
-# or
-./launch_gui.sh
 ```
 
 **Or launch in CLI mode** 
 ```bash
 vgp
-# or
-./run.sh
 ```
 
 **Or just run from the application launcher**
