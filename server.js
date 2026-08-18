@@ -345,6 +345,46 @@ if (config.analog) {
     });
   });
 
+  // Device connection tracking for auto-kick oldest
+  var deviceConnections = {
+    gamepad: {},
+    xinputGamepad: {},
+    xboxOneGamepad: {},
+    wheel: {},
+    keyboard: {},
+    touchpad: {}
+  };
+
+  // Find and kick the oldest device of a given type, then call onFreed callback
+  function kickOldestDevice(deviceType, hub, disconnectFn, idArrayName, onFreed) {
+    var oldest = null;
+    var oldestId = null;
+    for (var slotId in deviceConnections[deviceType]) {
+      var entry = deviceConnections[deviceType][slotId];
+      if (!oldest || entry.connectedAt < oldest.connectedAt) {
+        oldest = entry;
+        oldestId = parseInt(slotId);
+      }
+    }
+    if (oldest && oldestId !== null) {
+      log('info', 'Max ' + deviceType + ' capacity reached. Kicking device on slot ' + oldestId);
+      // Remove from the old socket's tracking array
+      var oldSocket = oldest.socket;
+      if (oldSocket && oldSocket[idArrayName]) {
+        var idx = oldSocket[idArrayName].indexOf(oldestId);
+        if (idx >= 0) oldSocket[idArrayName].splice(idx, 1);
+      }
+      delete deviceConnections[deviceType][oldestId];
+      // Disconnect from hub
+      hub[disconnectFn](oldestId, function() {
+        log('info', 'Kicked ' + deviceType + ' slot ' + oldestId + ' successfully freed.');
+        onFreed();
+      });
+    } else {
+      log('warning', 'Could not find any ' + deviceType + ' to kick.');
+    }
+  }
+
   // Socket.IO connection management
   io.on('connection', function(socket) {
     // Initialize arrays for multi-controller tracking per socket
@@ -359,17 +399,20 @@ if (config.analog) {
       // Disconnect all gamepads owned by this socket
       socket.gamePadIds.forEach(function(padId) {
         log('info', ' Gamepad ' + padId + ' disconnected');
+        delete deviceConnections.gamepad[padId];
         gp_hub.disconnectGamepad(padId, function() {});
       });
 
       // Disconnect all xinput gamepads owned by this socket
       socket.xinputGamePadIds.forEach(function(padId) {
+        delete deviceConnections.xinputGamepad[padId];
         xgp_hub.disconnectGamepad(padId, function() {
           log('info', 'Xinput gamepad ' + padId + ' disconnected.');
         });
       });
       // Disconnect all xboxone gamepads owned by this socket
       socket.xboxOneGamePadIds.forEach(function(padId) {
+        delete deviceConnections.xboxOneGamepad[padId];
         xboxone_hub.disconnectGamepad(padId, function() {
           log('info', 'Xboxone gamepad ' + padId + ' disconnected.');
         });
@@ -377,6 +420,7 @@ if (config.analog) {
 
       // Disconnect all wheels owned by this socket
       socket.wheelIds.forEach(function(padId) {
+        delete deviceConnections.wheel[padId];
         wh_hub.disconnectWheel(padId, function() {
           log('info', 'Virtual wheel ' + padId + ' disconnected.');
         });
@@ -385,12 +429,14 @@ if (config.analog) {
       // Disconnect all keyboards owned by this socket
       socket.keyBoardIds.forEach(function(boardId) {
         log('info', ' Keyboard ' + boardId + ' disconnected');
+        delete deviceConnections.keyboard[boardId];
         kb_hub.disconnectKeyboard(boardId, function() {});
       });
 
       // Disconnect all touchpads owned by this socket
       socket.touchpadIds.forEach(function(touchpadId) {
         log('info', ' Touchpad ' + touchpadId + ' disconnected');
+        delete deviceConnections.touchpad[touchpadId];
         tp_hub.disconnectTouchpad(touchpadId, function() {});
       });
 
@@ -406,20 +452,25 @@ if (config.analog) {
 
     // Manage Gamepad connection
     socket.on('connectGamepad', function() {
-      return gp_hub.connectGamepad(function(gamePadId) {
-        var ledBitField;
-        ledBitField = config.ledBitFieldSequence[gamePadId];
-        if (gamePadId !== -1) {
-          log('info', ' connectGamepad: success (slot ' + gamePadId + ')');
-          socket.gamePadIds.push(gamePadId);
-          return socket.emit('gamepadConnected', {
-            padId: gamePadId,
-            ledBitField: ledBitField
-          });
-        } else {
-          return log('warning', ' connectGamepad: failed');
-        }
-      });
+      function tryConnectGamepad() {
+        gp_hub.connectGamepad(function(gamePadId) {
+          var ledBitField;
+          ledBitField = config.ledBitFieldSequence[gamePadId];
+          if (gamePadId !== -1) {
+            log('info', ' connectGamepad: success (slot ' + gamePadId + ')');
+            socket.gamePadIds.push(gamePadId);
+            deviceConnections.gamepad[gamePadId] = { socket: socket, connectedAt: Date.now() };
+            return socket.emit('gamepadConnected', {
+              padId: gamePadId,
+              ledBitField: ledBitField
+            });
+          } else {
+            // Auto-kick oldest gamepad and retry
+            kickOldestDevice('gamepad', gp_hub, 'disconnectGamepad', 'gamePadIds', tryConnectGamepad);
+          }
+        });
+      }
+      tryConnectGamepad();
     });
 
     // Manage Gamepad events — routes by padId in data (with backward compat)
@@ -435,20 +486,24 @@ if (config.analog) {
 
     // Manage XInput Gamepad connection
     socket.on('connectXInputGamepad', function() {
-      return xgp_hub.connectGamepad(function(gamePadId) {
-        var ledBitField;
-        ledBitField = config.ledBitFieldSequence[gamePadId];
-        if (gamePadId !== -1) {
-          log('info', ' connectXInputGamepad: success (slot ' + gamePadId + ')');
-          socket.xinputGamePadIds.push(gamePadId);
-          return socket.emit('xinputGamepadConnected', {
-            padId: gamePadId,
-            ledBitField: ledBitField
-          });
-        } else {
-          return log('warning', ' connectXInputGamepad: failed');
-        }
-      });
+      function tryConnectXInput() {
+        xgp_hub.connectGamepad(function(gamePadId) {
+          var ledBitField;
+          ledBitField = config.ledBitFieldSequence[gamePadId];
+          if (gamePadId !== -1) {
+            log('info', ' connectXInputGamepad: success (slot ' + gamePadId + ')');
+            socket.xinputGamePadIds.push(gamePadId);
+            deviceConnections.xinputGamepad[gamePadId] = { socket: socket, connectedAt: Date.now() };
+            return socket.emit('xinputGamepadConnected', {
+              padId: gamePadId,
+              ledBitField: ledBitField
+            });
+          } else {
+            kickOldestDevice('xinputGamepad', xgp_hub, 'disconnectGamepad', 'xinputGamePadIds', tryConnectXInput);
+          }
+        });
+      }
+      tryConnectXInput();
     });
 
     // Manage XInput Gamepad events — now routes by padId in data
@@ -460,23 +515,25 @@ if (config.analog) {
     });
 
     socket.on('connectXboxOneGamepad', function() {
-      xboxone_hub.connectGamepad(function(gamePadId) {
-        if (gamePadId !== -1) {
-          socket.xboxOneGamePadIds.push(gamePadId);
-          return socket.emit('xboxOneGamepadConnected', {
-            padId: gamePadId
-          });
-        } else {
-          return socket.emit('xboxOneGamepadConnected', {
-            padId: -1
-          });
-        }
-      }, function(gamePadId, duration) {
-        // Vibrate callback
+      var vibrateCallback = function(gamePadId, duration) {
         if (socket.xboxOneGamePadIds.indexOf(gamePadId) !== -1) {
           socket.emit('xboxOneVibrate', { duration: duration });
         }
-      });
+      };
+      function tryConnectXboxOne() {
+        xboxone_hub.connectGamepad(function(gamePadId) {
+          if (gamePadId !== -1) {
+            socket.xboxOneGamePadIds.push(gamePadId);
+            deviceConnections.xboxOneGamepad[gamePadId] = { socket: socket, connectedAt: Date.now() };
+            return socket.emit('xboxOneGamepadConnected', {
+              padId: gamePadId
+            });
+          } else {
+            kickOldestDevice('xboxOneGamepad', xboxone_hub, 'disconnectGamepad', 'xboxOneGamePadIds', tryConnectXboxOne);
+          }
+        }, vibrateCallback);
+      }
+      tryConnectXboxOne();
     });
 
     socket.on('xboxOnePadEvent', function(data) {
@@ -486,19 +543,23 @@ if (config.analog) {
       }
     });
 
-// Manage Wheel connection
-socket.on('connectWheel', function() {
- return wh_hub.connectWheel(function(gamePadId) {
- var ledBitField = config.ledBitFieldSequence[gamePadId];
- if (gamePadId !== -1) {
- log('info', ' connectWheel: success (slot ' + gamePadId + ')');
- socket.wheelIds.push(gamePadId);
- return socket.emit('wheelConnected', { padId: gamePadId, ledBitField: ledBitField, hasClutch: true });
- } else {
- return log('warning', ' connectWheel: failed');
- }
-});
-});
+    // Manage Wheel connection
+    socket.on('connectWheel', function() {
+      function tryConnectWheel() {
+        wh_hub.connectWheel(function(gamePadId) {
+          var ledBitField = config.ledBitFieldSequence[gamePadId];
+          if (gamePadId !== -1) {
+            log('info', ' connectWheel: success (slot ' + gamePadId + ')');
+            socket.wheelIds.push(gamePadId);
+            deviceConnections.wheel[gamePadId] = { socket: socket, connectedAt: Date.now() };
+            return socket.emit('wheelConnected', { padId: gamePadId, ledBitField: ledBitField, hasClutch: true });
+          } else {
+            kickOldestDevice('wheel', wh_hub, 'disconnectWheel', 'wheelIds', tryConnectWheel);
+          }
+        });
+      }
+      tryConnectWheel();
+    });
 
     // Manage Wheel events
     socket.on('wheelEvent', function(data) {
@@ -516,17 +577,21 @@ socket.on('connectWheel', function() {
 
     // Manage Keyboard connection
     socket.on('connectKeyboard', function() {
-      return kb_hub.connectKeyboard(function(keyBoardId) {
-        if (keyBoardId !== -1) {
-          log('info', ' connectKeyboard: success (slot ' + keyBoardId + ')');
-          socket.keyBoardIds.push(keyBoardId);
-          return socket.emit('keyboardConnected', {
-            boardId: keyBoardId
-          });
-        } else {
-          return log('info', ' connectKeyboard: failed');
-        }
-      });
+      function tryConnectKeyboard() {
+        kb_hub.connectKeyboard(function(keyBoardId) {
+          if (keyBoardId !== -1) {
+            log('info', ' connectKeyboard: success (slot ' + keyBoardId + ')');
+            socket.keyBoardIds.push(keyBoardId);
+            deviceConnections.keyboard[keyBoardId] = { socket: socket, connectedAt: Date.now() };
+            return socket.emit('keyboardConnected', {
+              boardId: keyBoardId
+            });
+          } else {
+            kickOldestDevice('keyboard', kb_hub, 'disconnectKeyboard', 'keyBoardIds', tryConnectKeyboard);
+          }
+        });
+      }
+      tryConnectKeyboard();
     });
 
     // Manage Keyboard events (with backward compat)
@@ -541,17 +606,21 @@ socket.on('connectWheel', function() {
 
     // Manage Touchpad connection
     socket.on('connectTouchpad', function() {
-      return tp_hub.connectTouchpad(function(touchpadId) {
-        if (touchpadId !== -1) {
-          log('info', ' connectTouchpad: success (slot ' + touchpadId + ')');
-          socket.touchpadIds.push(touchpadId);
-          return socket.emit('touchpadConnected', {
-            touchpadId: touchpadId
-          });
-        } else {
-          return log('info', ' connectTouchpad: failed');
-        }
-      });
+      function tryConnectTouchpad() {
+        tp_hub.connectTouchpad(function(touchpadId) {
+          if (touchpadId !== -1) {
+            log('info', ' connectTouchpad: success (slot ' + touchpadId + ')');
+            socket.touchpadIds.push(touchpadId);
+            deviceConnections.touchpad[touchpadId] = { socket: socket, connectedAt: Date.now() };
+            return socket.emit('touchpadConnected', {
+              touchpadId: touchpadId
+            });
+          } else {
+            kickOldestDevice('touchpad', tp_hub, 'disconnectTouchpad', 'touchpadIds', tryConnectTouchpad);
+          }
+        });
+      }
+      tryConnectTouchpad();
     });
 
     // Manage Touchpad events (with backward compat)
@@ -587,6 +656,7 @@ socket.on('connectWheel', function() {
           idx = socket.gamePadIds.indexOf(padId);
           if (idx !== -1) {
             socket.gamePadIds.splice(idx, 1);
+            delete deviceConnections.gamepad[padId];
             gp_hub.disconnectGamepad(padId, function() {
               log('info', ' Gamepad ' + padId + ' manually disconnected');
               socket.emit('controllerDisconnected', { type: 'gamepad', padId: padId });
@@ -597,6 +667,7 @@ socket.on('connectWheel', function() {
           idx = socket.xinputGamePadIds.indexOf(padId);
           if (idx !== -1) {
             socket.xinputGamePadIds.splice(idx, 1);
+            delete deviceConnections.xinputGamepad[padId];
             xgp_hub.disconnectGamepad(padId, function() {
               log('info', 'Xinput gamepad ' + padId + ' manually disconnected');
               socket.emit('controllerDisconnected', { type: 'xinputGamepad', padId: padId });
@@ -607,6 +678,7 @@ socket.on('connectWheel', function() {
           idx = socket.xboxOneGamePadIds.indexOf(padId);
           if (idx !== -1) {
             socket.xboxOneGamePadIds.splice(idx, 1);
+            delete deviceConnections.xboxOneGamepad[padId];
             xboxone_hub.disconnectGamepad(padId, function() {
               log('info', 'Xboxone gamepad ' + padId + ' manually disconnected');
               socket.emit('controllerDisconnected', { type: 'xboxOneGamepad', padId: padId });
@@ -617,6 +689,7 @@ socket.on('connectWheel', function() {
           idx = socket.wheelIds.indexOf(padId);
           if (idx !== -1) {
             socket.wheelIds.splice(idx, 1);
+            delete deviceConnections.wheel[padId];
             wh_hub.disconnectWheel(padId, function() {
               log('info', 'Virtual wheel ' + padId + ' manually disconnected');
               socket.emit('controllerDisconnected', { type: 'wheel', padId: padId });
@@ -627,6 +700,7 @@ socket.on('connectWheel', function() {
           idx = socket.keyBoardIds.indexOf(padId);
           if (idx !== -1) {
             socket.keyBoardIds.splice(idx, 1);
+            delete deviceConnections.keyboard[padId];
             kb_hub.disconnectKeyboard(padId, function() {
               log('info', ' Keyboard ' + padId + ' manually disconnected');
               socket.emit('controllerDisconnected', { type: 'keyboard', padId: padId });
@@ -637,6 +711,7 @@ socket.on('connectWheel', function() {
           idx = socket.touchpadIds.indexOf(padId);
           if (idx !== -1) {
             socket.touchpadIds.splice(idx, 1);
+            delete deviceConnections.touchpad[padId];
             tp_hub.disconnectTouchpad(padId, function() {
               log('info', ' Touchpad ' + padId + ' manually disconnected');
               socket.emit('controllerDisconnected', { type: 'touchpad', padId: padId });

@@ -20,8 +20,18 @@
     }
 
     connectKeyboard(callback) {
-      var boardId;
-      boardId = this.keyboards.length;
+      var boardId = -1;
+      // Search for a free (disconnected) slot first
+      for (var i = 0; i < this.keyboards.length; i++) {
+        if (this.keyboards[i] === undefined || this.keyboards[i] === void 0) {
+          boardId = i;
+          break;
+        }
+      }
+      // If no free slot, try to append
+      if (boardId === -1) {
+        boardId = this.keyboards.length;
+      }
       // Check if max keyboards reached
       if (boardId >= num_keyboards) {
         log('warning', "Couldn't add new keyboard: no slot left.");
@@ -52,6 +62,22 @@
       if (this.keyboards[boardId]) {
         return this.keyboards[boardId].sendEvent(event);
       }
+    }
+
+    getStatus() {
+      var slots = [];
+      var used = 0;
+      for (var i = 0; i < num_keyboards; i++) {
+        var occupied = !!this.keyboards[i];
+        slots.push(occupied);
+        if (occupied) used++;
+      }
+      return {
+        slots: slots,
+        total: num_keyboards,
+        used: used,
+        free: num_keyboards - used
+      };
     }
 
   };

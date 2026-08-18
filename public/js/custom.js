@@ -44,7 +44,8 @@ function toggleDark() {
   document.body.classList.toggle("dark");
   darkBtn.classList.toggle("active");
   ["path3259", "path3237", "path3247", "path3253"].forEach((id) => {
-    document.getElementById(id).classList.toggle("dark");
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle("dark");
   });
   const darkBtnIcon = document.getElementById("btn-dark-icon");
   if (document.body.classList.contains("dark")) {

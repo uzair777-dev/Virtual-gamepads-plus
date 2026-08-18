@@ -93,10 +93,6 @@
 
   <body>
     <div class="loader">Loading...</div>
-    <button id="btn-back" onclick="window.location.href='/'" style="position: absolute; top: 10px; left: 10px; z-index: 1000; background: transparent; border: none; cursor: pointer; padding: 0;">
-      <img src="/images/icons/back.svg" style="width: 32px; height: 32px; filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.5));" />
-    </button>
-
     <div id="settings-modal" class="modal-wrapper closed">
       <div class="modal">
         <div class="close"></div>
@@ -163,5 +159,17 @@
       </div>
     </div>
     <div id="keyboard-container"></div>
+    <div class="buttonContainer">
+      <button id="btn-back" onclick="window.location.href='/'">
+        <img id="btn-back-icon" src="images/icons/back.svg" style="width: 24px; height: 24px;" />
+      </button>
+      <button id="btn-fullscreen" onclick="toggleFullscreen()">
+        <img id="btn-fullscreen-icon" src="images/icons/fullscreen.svg" />
+      </button>
+      <button id="btn-dark" onclick="toggleDark()">
+        <img id="btn-dark-icon" src="images/icons/moon.svg" />
+      </button>
+    </div>
+    <script src="/js/wakelock.js"></script>
   </body>
 </html>

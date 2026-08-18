@@ -19,8 +19,18 @@
     }
 
     connectTouchpad(callback) {
-      var touchpadId;
-      touchpadId = this.touchpads.length;
+      var touchpadId = -1;
+      // Search for a free (disconnected) slot first
+      for (var i = 0; i < this.touchpads.length; i++) {
+        if (this.touchpads[i] === undefined || this.touchpads[i] === void 0) {
+          touchpadId = i;
+          break;
+        }
+      }
+      // If no free slot, try to append
+      if (touchpadId === -1) {
+        touchpadId = this.touchpads.length;
+      }
       // Check if max touchpads reached
       if (touchpadId >= num_touchpads) {
         log('warning', "Couldn't add new touchpad: no slot left.");
@@ -51,6 +61,22 @@
       if (this.touchpads[touchpadId]) {
         return this.touchpads[touchpadId].sendEvent(event);
       }
+    }
+
+    getStatus() {
+      var slots = [];
+      var used = 0;
+      for (var i = 0; i < num_touchpads; i++) {
+        var occupied = !!this.touchpads[i];
+        slots.push(occupied);
+        if (occupied) used++;
+      }
+      return {
+        slots: slots,
+        total: num_touchpads,
+        used: used,
+        free: num_touchpads - used
+      };
     }
 
   };
