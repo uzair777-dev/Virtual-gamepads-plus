@@ -34,10 +34,19 @@ html {
     border: none;
     cursor: pointer;
     z-index: 999;
+    padding: 0;
+    margin: 0;
 }
 
 .action-btn img {
+    width: 3rem;
     height: 3rem;
+    display: block;
+}
+
+#btn-fullscreen {
+    top: .2rem;
+    left: .2rem;
 }
 
 #btn-dark {
@@ -45,9 +54,9 @@ html {
     left: 3.4rem;
 }
 
-#btn-fullscreen {
+#btn-back {
     top: .2rem;
-    left: .2rem;
+    right: 3.4rem;
 }
 
 #menu {

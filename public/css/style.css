@@ -276,16 +276,6 @@ small.explain {
     line-height: 1em;
 }
 
-/* Keyboard dark mode — invert entire SVG keyboard */
-body.dark #keyboard-container svg#keyboard {
-    filter: invert(1);
-}
-
-/* Keep button bar icons visible in dark mode */
-body.dark .buttonContainer {
-    filter: invert(1);
-}
-
 small.explain.center {
     width: 100%;
     text-align: center;
