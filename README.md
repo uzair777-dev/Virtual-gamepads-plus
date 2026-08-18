@@ -38,10 +38,18 @@ Make sure to Restart or relogin afterwards to take effect
     chmod +x run.sh 
 ```
 **Running gui from terminal**
+```bash
 ./launch_gui.sh
+```
+
 **Or launch in terminal** 
+```bash
 ./run.sh
+```
+
 **Or just run from the application launcher**
+
+
 ## Screenshots (New Version):
 
 ### Desktop Server GUI Manager
