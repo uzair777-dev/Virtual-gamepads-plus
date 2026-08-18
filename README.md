@@ -44,7 +44,7 @@ Make sure to Restart or relogin afterwards to take effect
 
 **Or launch in terminal** 
 ```bash
-./run.sh
+vgp
 ```
 
 **Or just run from the application launcher**
