@@ -36,12 +36,12 @@ Make sure to Restart or relogin afterwards to take effect
     # Make script executable by this command or gui
     chmod +x launch_gui.sh
     chmod +x run.sh 
-    # Running gui from terminal
-    ./launch_gui.sh
-    # Or launch in terminal
-    ./run.sh
-    # Or just run from the application launcher
 ```
+**Running gui from terminal**
+./launch_gui.sh
+**Or launch in terminal** 
+./run.sh
+**Or just run from the application launcher**
 ## Screenshots (New Version):
 
 ### Desktop Server GUI Manager
