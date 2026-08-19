@@ -120,6 +120,18 @@ html {
     background: rgba(0, 0, 0, 0.8);
 }
 
+@keyframes blink {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.4;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
 @-webkit-keyframes blink {
     0% {
         opacity: 1;
@@ -153,8 +165,9 @@ html {
     left: 0;
     right: 0;
     bottom: 50%;
-    -moz-animation: blink 0.7s infinite;
     -webkit-animation: blink 0.7s infinite;
+    -moz-animation: blink 0.7s infinite;
+    animation: blink 0.7s infinite;
 }
 
 #settings-gear {
