@@ -10,13 +10,13 @@ define(["jquery", "./utils", "./settings"], function ($, util, settings) {
     var clickedKeys = [];
     var activeModKeys = {};
     function bindClickAndTouchEvents(cb, settingsCb) {
-        $("svg#keyboard > g > g#settings").on("mousedown touchstart", function () {
-            $(this).attr('class', 'active');
+        $("svg#keyboard > g > g#settings, #btn-settings").on("mousedown touchstart", function () {
+            $(this).addClass('active');
             hapticFeedback();
             settingsCb();
             $('#settings-modal').removeClass('closed');
         }).on("mouseleave mouseup touchend", function (event) {
-            $(this).removeAttr('class');
+            $(this).removeClass('active');
         });
 
         $(document).on("contextmenu",function(){
