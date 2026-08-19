@@ -92,7 +92,7 @@ if [ -z "$GUI_MODE" ] && [ -z "$NO_UPDATE_CHECK" ] && [ -x "$SCRIPT_DIR/check_up
         
         # 2. Terminal Banner
         echo -e "\033[1;36m┌────────────────────────────────────────────────────────┐\033[0m"
-        echo -e "\033[1;36m│\033[0m \033[1;32m🚀 Update Available:\033[0m v$CURR_VER -> v$LATEST_VER               \033[1;36m│\033[0m"
+        echo -e "\033[1;36m│\033[0m \033[1;32mUpdate Available:\033[0m v$CURR_VER -> v$LATEST_VER                  \033[1;36m│\033[0m"
         echo -e "\033[1;36m│\033[0m Run '\033[1m./update.sh\033[0m' or '\033[1mvgp --update\033[0m' to install update!  \033[1;36m│\033[0m"
         echo -e "\033[1;36m└────────────────────────────────────────────────────────┘\033[0m"
         echo ""

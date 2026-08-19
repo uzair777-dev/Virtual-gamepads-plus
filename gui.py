@@ -253,7 +253,7 @@ class VirtualGamepadsGUI(Gtk.Window):
         button_box.pack_start(self.stop_btn, False, False, 0)
 
         # Main Update Now button (Visible when update is available)
-        self.main_update_btn = Gtk.Button(label="🚀 Update Now")
+        self.main_update_btn = Gtk.Button(label="Update Now")
         self.main_update_btn.connect("clicked", self.on_update_now_clicked)
         self.main_update_btn.set_no_show_all(True)
         btn_css = Gtk.CssProvider()
@@ -426,7 +426,7 @@ class VirtualGamepadsGUI(Gtk.Window):
 
     def _on_update_available(self, current_ver, latest_ver):
         self.latest_version = latest_ver
-        markup = f"<b>🚀 Update Available:</b> v{current_ver} → <span foreground='#2196F3' weight='bold'>v{latest_ver}</span>"
+        markup = f"<b>Update Available:</b> v{current_ver} → <span foreground='#2196F3' weight='bold'>v{latest_ver}</span>"
         self.update_banner_label.set_markup(markup)
         
         # Un-suppress and show top banner
@@ -435,12 +435,12 @@ class VirtualGamepadsGUI(Gtk.Window):
         
         # Un-suppress and show main button row update button
         if hasattr(self, 'main_update_btn'):
-            self.main_update_btn.set_label(f"🚀 Update (v{latest_ver})")
+            self.main_update_btn.set_label(f"Update (v{latest_ver})")
             self.main_update_btn.set_no_show_all(False)
             self.main_update_btn.show()
 
         if hasattr(self, 'item_update_tray') and self.item_update_tray:
-            self.item_update_tray.set_label(f"🚀 Update to v{latest_ver}")
+            self.item_update_tray.set_label(f"Update to v{latest_ver}")
             self.item_update_tray.set_no_show_all(False)
             self.item_update_tray.show()
 
@@ -601,7 +601,7 @@ class VirtualGamepadsGUI(Gtk.Window):
         status_v_label = Gtk.Label(label="")
         status_v_label.set_use_markup(True)
         
-        modal_update_btn = Gtk.Button(label="🚀 Update Now")
+        modal_update_btn = Gtk.Button(label="Update Now")
         modal_update_btn.connect("clicked", lambda b: (modal_win.destroy(), self.on_update_now_clicked(None)))
         modal_update_btn.set_no_show_all(True)
         if getattr(self, 'latest_version', None):
@@ -1026,7 +1026,7 @@ class VirtualGamepadsGUI(Gtk.Window):
     def setup_tray_icon(self):
         menu = Gtk.Menu()
         
-        self.item_update_tray = Gtk.MenuItem(label="🚀 Update Available")
+        self.item_update_tray = Gtk.MenuItem(label="Update Available")
         self.item_update_tray.connect("activate", self.on_tray_show)
         self.item_update_tray.set_no_show_all(True)
         menu.append(self.item_update_tray)
