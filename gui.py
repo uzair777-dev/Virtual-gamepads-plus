@@ -288,6 +288,9 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.settings_btn.connect("clicked", self.on_settings_clicked)
         button_box.pack_start(self.settings_btn, False, False, 0)
         
+        # Connect dynamic theme change listener
+        self.connect("style-updated", self.on_style_updated)
+        
         # Control settings references (initialized from config)
         self.tray_toggle = Gtk.CheckButton()
         self.tray_toggle.set_active(self.config.get('minimise_to_tray', False))
@@ -786,7 +789,27 @@ class VirtualGamepadsGUI(Gtk.Window):
             if self.debug_toggle.get_active() if hasattr(self, 'debug_toggle') else self.config.get('debug', False):
                 cmd.append('--debug')
         
-        custom_port_val = self.port_entry.get_text().strip() if hasattr(self, 'port_entry') else ''
+        custom_port_val = self.port_entry.get_text().strip() if hasattr(self, 'port_entry') else str(self.config.get('custom_port', '')).strip()
+        if custom_port_val:
+            if not custom_port_val.isdigit() or not (1 <= int(custom_port_val) <= 65535):
+                dialog = Gtk.MessageDialog(
+                    transient_for=self,
+                    flags=Gtk.DialogFlags.MODAL,
+                    message_type=Gtk.MessageType.WARNING,
+                    buttons=Gtk.ButtonsType.OK,
+                    text="Invalid Port Configuration"
+                )
+                dialog.format_secondary_text(
+                    f"Port '{custom_port_val}' is invalid. TCP ports must be a number between 1 and 65535.\n\n"
+                    "Resetting to default port (8443)."
+                )
+                dialog.run()
+                dialog.destroy()
+                self.config['custom_port'] = ''
+                self.save_config()
+                if hasattr(self, 'port_entry'):
+                    self.port_entry.set_text('')
+                custom_port_val = ''
         if custom_port_val:
             cmd.append(f'--port={custom_port_val}')
         
@@ -863,8 +886,10 @@ class VirtualGamepadsGUI(Gtk.Window):
         
         if HAS_SEGNO:
             try:
-                # Store QR code in the script directory to avoid /tmp permission conflicts
-                tmp_qr_path = os.path.join(SCRIPT_DIR, ".vgp_qrcode_user.png")
+                # Store QR code in ~/.cache/virtual-gamepads-plus/ to avoid permission conflicts
+                cache_dir = os.path.expanduser("~/.cache/virtual-gamepads-plus")
+                os.makedirs(cache_dir, exist_ok=True)
+                tmp_qr_path = os.path.join(cache_dir, "qr_code.png")
                 
                 qr = segno.make(url)
                 qr.save(tmp_qr_path, scale=6, border=2)
@@ -876,6 +901,17 @@ class VirtualGamepadsGUI(Gtk.Window):
                 self.log(f"Could not generate QR code: {e}\n")
         else:
             self.log("QR code library not available. Use the URL above to connect.\n")
+
+    def on_style_updated(self, widget):
+        # Dynamically reload gear and UI icons on system theme switch
+        gear_icon_path = os.path.join(SCRIPT_DIR, 'public', 'images', 'icons', 'gear.svg')
+        if os.path.exists(gear_icon_path) and hasattr(self, 'settings_btn'):
+            try:
+                pixbuf = load_colored_svg_pixbuf(gear_icon_path, 18, 18, is_dark_theme(self))
+                gear_img = Gtk.Image.new_from_pixbuf(pixbuf)
+                self.settings_btn.set_image(gear_img)
+            except Exception:
+                pass
 
     def on_stop_clicked(self, button):
         self.user_stopped = True

@@ -441,17 +441,53 @@
       // Reset stick to 0
       emit(EV_ABS, ABS_RX, 0);
       emit(EV_ABS, ABS_RY, 0);
-    } else if (window.DeviceMotionEvent) {
-      window.addEventListener("devicemotion", motionUpdate, true);
-      if (btn) btn.style.background = "var(--primary-color, #107c10)"; // Highlight active
-      motionListener = true;
-    } else if (window.DeviceOrientationEvent) {
-      window.addEventListener("deviceorientation", orientationUpdate, true);
-      if (btn) btn.style.background = "var(--primary-color, #107c10)"; // Highlight active
-      motionListener = true;
+      return;
+    }
+
+    var enableMotion = function() {
+      if (window.DeviceMotionEvent) {
+        window.addEventListener("devicemotion", motionUpdate, true);
+        if (btn) btn.style.background = "var(--primary-color, #107c10)"; // Highlight active
+        motionListener = true;
+      } else if (window.DeviceOrientationEvent) {
+        window.addEventListener("deviceorientation", orientationUpdate, true);
+        if (btn) btn.style.background = "var(--primary-color, #107c10)"; // Highlight active
+        motionListener = true;
+      } else {
+        alert("Gyro is not supported on your device or disabled in browser settings.");
+        if (btn) btn.disabled = true;
+      }
+    };
+
+    // iOS 13+ Permission API request
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      DeviceMotionEvent.requestPermission()
+        .then(function(permissionState) {
+          if (permissionState === 'granted') {
+            enableMotion();
+          } else {
+            alert('Motion sensor permission was denied.');
+          }
+        })
+        .catch(function(err) {
+          console.error('DeviceMotion permission error:', err);
+          enableMotion();
+        });
+    } else if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      DeviceOrientationEvent.requestPermission()
+        .then(function(permissionState) {
+          if (permissionState === 'granted') {
+            enableMotion();
+          } else {
+            alert('Orientation sensor permission was denied.');
+          }
+        })
+        .catch(function(err) {
+          console.error('DeviceOrientation permission error:', err);
+          enableMotion();
+        });
     } else {
-      alert("Gyro is not supported on your device or disabled in browser settings.");
-      if (btn) btn.disabled = true;
+      enableMotion();
     }
   };
 

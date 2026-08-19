@@ -296,6 +296,23 @@ if id -nG "$USER" 2>/dev/null | grep -qw "input"; then
     WAS_IN_INPUT_GROUP=1
 fi
 
+# Ensure uinput kernel module is available
+if [ ! -e "/dev/uinput" ]; then
+    sudo modprobe uinput 2>/dev/null || true
+    if [ ! -e "/dev/uinput" ]; then
+        echo -e "${YELLOW}Notice: /dev/uinput kernel device was not found.${RESET}"
+        local uinput_boot_ans="y"
+        if [ -t 0 ] || [ -c /dev/tty ]; then
+            read -p "Would you like to configure uinput to load automatically on boot? [Y/n] " uinput_boot_ans < /dev/tty || uinput_boot_ans="y"
+        fi
+        if [[ "$uinput_boot_ans" =~ ^[Yy]$ || -z "$uinput_boot_ans" ]]; then
+            sudo mkdir -p /etc/modules-load.d 2>/dev/null || true
+            echo "uinput" | sudo tee /etc/modules-load.d/uinput.conf >/dev/null 2>&1 || true
+            sudo modprobe uinput 2>/dev/null || true
+        fi
+    fi
+fi
+
 # Add user to 'input' group and install /dev/uinput udev rule
 sudo usermod -aG input "$USER" 2>/dev/null || true
 RULE='KERNEL=="uinput", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"'
@@ -444,5 +461,9 @@ echo "  vgp --uninstall"
 
 if [ $NEEDS_RELOGIN -eq 1 ]; then
     echo ""
-    echo -e "${YELLOW}Note: Added to 'input' group. Please log out and back in for /dev/uinput access.${RESET}"
+    echo -e "\033[1;33m╔═══════════════════════════════════════════════════════════════════════════╗\033[0m"
+    echo -e "\033[1;33m║\033[0m  \033[1;37mIMPORTANT ACTION REQUIRED:\033[0m                                              \033[1;33m║\033[0m"
+    echo -e "\033[1;33m║\033[0m  Your user was added to the '\033[1minput\033[0m' group for gamepad device emulation.   \033[1;33m║\033[0m"
+    echo -e "\033[1;33m║\033[0m  \033[1;31mPlease LOG OUT and LOG BACK IN (or reboot)\033[0m to apply group permissions!   \033[1;33m║\033[0m"
+    echo -e "\033[1;33m╚═══════════════════════════════════════════════════════════════════════════╝\033[0m"
 fi

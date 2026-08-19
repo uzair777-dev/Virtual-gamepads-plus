@@ -108,29 +108,38 @@ if [ -z "$GUI_MODE" ] && [ -z "$NO_UPDATE_CHECK" ] && [ -x "$SCRIPT_DIR/check_up
     fi
 fi
 
-# Get IP via default route — works on WiFi, Ethernet, VPN, etc.
-IP_ADDRESS=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[\d.]+')
+# Get IP via default route, prioritizing physical WiFi / Ethernet over virtual adapters
+IP_ADDRESS=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[\d.]+' || echo "")
 
-# Fallback: scan all UP interfaces
+# If default route is missing or belongs to a virtual adapter, scan physical UP interfaces
+if [ -z "$IP_ADDRESS" ] || [[ "$IP_ADDRESS" =~ ^172\.(17|18|19|20)\. ]] || [[ "$IP_ADDRESS" =~ ^100\. ]]; then
+    PHYSICAL_IP=$(ip -4 addr show scope global up 2>/dev/null | grep -vE 'docker|virbr|veth|tailscale|tun|br-|dummy' | grep -oP 'inet \K[\d.]+' | head -1 || echo "")
+    if [ -n "$PHYSICAL_IP" ]; then
+        IP_ADDRESS="$PHYSICAL_IP"
+    fi
+fi
+
+# Fallback: scan all global UP interfaces
 if [ -z "$IP_ADDRESS" ]; then
-    IP_ADDRESS=$(ip -4 addr show scope global up | grep -oP 'inet \K[\d.]+' | head -1)
+    IP_ADDRESS=$(ip -4 addr show scope global up 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1 || echo "")
 fi
 
 if [ -z "$GUI_MODE" ]; then
     clear
 fi
 
-# Auto-check and fix npm dependencies for future-proofing
+# Auto-check and fix npm dependencies and native module ABI compatibility
 if [ -z "$GUI_MODE" ]; then
-    echo "Checking npm dependencies..."
+    echo "Checking Node.js dependencies & native modules..."
 fi
 cd "$SCRIPT_DIR"
 
-if [ ! -d "node_modules" ] || ! npm ls >/dev/null 2>&1; then
+if [ ! -d "node_modules" ] || ! npm ls >/dev/null 2>&1 || ! node -e "require('ioctl')" >/dev/null 2>&1; then
     if [ -z "$GUI_MODE" ]; then
-	    echo "Missing or broken dependencies detected. Installing/fixing automatically..."
+	    echo "Missing, broken, or mismatched native dependencies detected. Installing/rebuilding..."
     fi
 	npm install
+	npm rebuild
 fi
 
 # IP exist or not

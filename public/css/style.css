@@ -1,3 +1,23 @@
+/* Controller pages default to disabling gestures to avoid browser navigation collisions */
+html, body {
+    touch-action: none;
+    overscroll-behavior: none;
+}
+
+/* Allow smooth vertical scrolling on index / menu pages for rotated screens, tablets, and small heights */
+html.index-page,
+body.index-page,
+.index-page {
+    touch-action: pan-y !important;
+    overscroll-behavior-y: auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    height: auto !important;
+    min-height: 100% !important;
+    padding-bottom: 2.5rem !important;
+}
+
 body {
     -webkit-touch-callout: none;
     /* iOS Safari */

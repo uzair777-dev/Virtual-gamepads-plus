@@ -709,23 +709,59 @@ function toggleGyro() {
     dirContainer.classList.remove("hidden");
     gyroSliderDiv.classList.add("hidden");
     motionListener = false;
-  } else if (window.DeviceMotionEvent) {
-    window.addEventListener("devicemotion", motionUpdate, true);
-    gyroBtn.classList.add("active");
-    dirContainer.classList.add("hidden");
-    gyroSliderDiv.classList.remove("hidden");
-    motionListener = true;
-  } else if (window.DeviceOrientationEvent) {
-    window.addEventListener("deviceorientation", orientationUpdate, true);
-    gyroBtn.classList.add("active");
-    dirContainer.classList.add("hidden");
-    gyroSliderDiv.classList.remove("hidden");
-    motionListener = true;
+    return;
+  }
+
+  var enableMotion = function() {
+    if (window.DeviceMotionEvent) {
+      window.addEventListener("devicemotion", motionUpdate, true);
+      gyroBtn.classList.add("active");
+      dirContainer.classList.add("hidden");
+      gyroSliderDiv.classList.remove("hidden");
+      motionListener = true;
+    } else if (window.DeviceOrientationEvent) {
+      window.addEventListener("deviceorientation", orientationUpdate, true);
+      gyroBtn.classList.add("active");
+      dirContainer.classList.add("hidden");
+      gyroSliderDiv.classList.remove("hidden");
+      motionListener = true;
+    } else {
+      alert(
+        "Gyro is not supported on your device or disabled in browser settings.",
+      );
+      gyroBtn.disabled = true;
+    }
+  };
+
+  // iOS 13+ Permission API request
+  if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+    DeviceMotionEvent.requestPermission()
+      .then(function(permissionState) {
+        if (permissionState === 'granted') {
+          enableMotion();
+        } else {
+          alert('Motion sensor permission was denied.');
+        }
+      })
+      .catch(function(err) {
+        console.error('DeviceMotion permission error:', err);
+        enableMotion();
+      });
+  } else if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then(function(permissionState) {
+        if (permissionState === 'granted') {
+          enableMotion();
+        } else {
+          alert('Orientation sensor permission was denied.');
+        }
+      })
+      .catch(function(err) {
+        console.error('DeviceOrientation permission error:', err);
+        enableMotion();
+      });
   } else {
-    alert(
-      "Gyro is not supported on your device or disabled in browser settings.",
-    );
-    gyroBtn.disabled = true;
+    enableMotion();
   }
 }
 

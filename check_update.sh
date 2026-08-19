@@ -110,14 +110,11 @@ if [ $FETCH_OK -eq 0 ]; then
     exit 2
 fi
 
-# 7. Read remote VERSION file from origin/main (fallback to origin/main:package.json)
+# 7. Read remote VERSION file from origin/main
 REMOTE_VERSION=$(git show origin/main:VERSION 2>/dev/null | tr -d '[:space:]' || echo "")
-if [ -z "$REMOTE_VERSION" ]; then
-    REMOTE_VERSION=$(git show origin/main:package.json 2>/dev/null | grep -oP '"version":\s*"\K[^"]+' || echo "")
-fi
 
 if [ -z "$REMOTE_VERSION" ]; then
-    output_msg "Notice: Could not read remote VERSION file from origin/main."
+    output_msg "Notice: Could not find VERSION file in remote repository (origin/main)."
     output_json '{"status": "error_reading_remote_version"}'
     exit 1
 fi

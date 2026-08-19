@@ -97,9 +97,25 @@ fi
 # 5. Restore stashed local modifications if any
 if [ $DID_STASH -eq 1 ]; then
     echo -e "${BLUE}==>${RESET} ${BOLD}Restoring local modifications...${RESET}"
-    git stash pop 2>/dev/null || {
-        echo -e "${YELLOW}Note: Stashed changes had merge notices. Local presets/configs preserved in git stash.${RESET}"
-    }
+    if ! git stash pop 2>/dev/null; then
+        # Check for unmerged files / merge conflicts
+        CONFLICT_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || echo "")
+        if [ -n "$CONFLICT_FILES" ]; then
+            BACKUP_DIR="$HOME/.config/virtual-gamepads-plus/backup/$(date +%Y%m%d_%H%M%S)"
+            mkdir -p "$BACKUP_DIR" 2>/dev/null || true
+            for cfile in $CONFLICT_FILES; do
+                if [ -f "$cfile" ]; then
+                    cp -a "$cfile" "$BACKUP_DIR/" 2>/dev/null || true
+                fi
+            done
+            git reset --hard origin/main 2>/dev/null || true
+            echo -e "${YELLOW}Notice: Local edits conflicted with upstream updates.${RESET}"
+            echo -e "Your modified files were backed up to: ${BOLD}$BACKUP_DIR${RESET}"
+            echo -e "Workspace has been safely reset to clean upstream."
+        else
+            git reset --hard origin/main 2>/dev/null || true
+        fi
+    fi
 fi
 
 # 6. Install / update Node.js dependencies & compile native bindings

@@ -84,6 +84,24 @@ Virtual gamepad application
       try {
         fs.accessSync(keyPath, fs.constants.R_OK);
         fs.accessSync(certPath, fs.constants.R_OK);
+
+        // Check if current active IPv4 addresses are present in cert SAN
+        var _cp = require('child_process');
+        var existingSAN = _cp.execSync('openssl x509 -in "' + certPath + '" -noout -ext subjectAltName 2>/dev/null', { encoding: 'utf8' }) || '';
+        var os = require('os');
+        var interfaces = os.networkInterfaces();
+        var ipMissing = false;
+        Object.keys(interfaces).forEach(function(ifname) {
+          interfaces[ifname].forEach(function(iface) {
+            if (!iface.internal && iface.family === 'IPv4' && !existingSAN.includes(iface.address)) {
+              ipMissing = true;
+            }
+          });
+        });
+        if (ipMissing) {
+          log('info', '[AUTO-HEAL] Network IP changed. Regenerating SSL certificate with updated SANs...');
+          try { fs.unlinkSync(keyPath); fs.unlinkSync(certPath); } catch(e) {}
+        }
       } catch (permErr) {
         log('warning', '[AUTO-HEAL] SSL certificate permission error (EACCES). Fixing file permissions...');
         try {
@@ -296,6 +314,9 @@ if (config.analog) {
 
   // REST API for Wheel Presets
   var presetsDir = path.join(__dirname, 'presets', 'wheel');
+  if (!fs.existsSync(presetsDir)) {
+    try { fs.mkdirSync(presetsDir, { recursive: true }); } catch(e) {}
+  }
   
   app.get('/api/wheel-presets', function(req, res) {
     fs.readdir(presetsDir, function(err, files) {
@@ -306,7 +327,9 @@ if (config.analog) {
   });
 
   app.get('/api/wheel-presets/:name', function(req, res) {
-    var p = path.join(presetsDir, req.params.name + '.json');
+    var safeName = path.basename(req.params.name || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!safeName) return res.status(400).json({error: 'Invalid preset name'});
+    var p = path.join(presetsDir, safeName + '.json');
     fs.readFile(p, 'utf8', function(err, data) {
       if (err) return res.status(404).json({error: 'Not found'});
       try { res.json(JSON.parse(data)); }
@@ -315,10 +338,11 @@ if (config.analog) {
   });
 
   app.post('/api/wheel-presets', function(req, res) {
-    var name = req.body.name;
+    var rawName = req.body.name || '';
+    var safeName = path.basename(rawName).replace(/[^a-zA-Z0-9_-]/g, '');
     var configData = req.body.config;
-    if (!name || !configData) return res.status(400).json({error: 'Missing name or config'});
-    var p = path.join(presetsDir, name + '.json');
+    if (!safeName || !configData) return res.status(400).json({error: 'Missing or invalid name/config'});
+    var p = path.join(presetsDir, safeName + '.json');
     fs.writeFile(p, JSON.stringify(configData, null, 2), function(err) {
       if (err) return res.status(500).json({error: 'Failed to save'});
       res.json({success: true});
@@ -326,7 +350,9 @@ if (config.analog) {
   });
 
   app.delete('/api/wheel-presets/:name', function(req, res) {
-    var p = path.join(presetsDir, req.params.name + '.json');
+    var safeName = path.basename(req.params.name || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!safeName) return res.status(400).json({error: 'Invalid preset name'});
+    var p = path.join(presetsDir, safeName + '.json');
     fs.unlink(p, function(err) {
       if (err) return res.status(500).json({error: 'Failed to delete'});
       res.json({success: true});
@@ -780,7 +806,6 @@ var tryPort = function(ports, index, retries) {
     listenServer = server;
   } else {
     listenServer = https.createServer(options, app);
-    io.attach(listenServer);
   }
 
   var errorHandler = function(err) {
@@ -804,6 +829,9 @@ var tryPort = function(ports, index, retries) {
     listenServer.removeListener('error', errorHandler);
     server = listenServer;
     port = attemptPort;
+    if (index > 0 || retries > 0) {
+      io.attach(server);
+    }
     log('info', 'Listening on port ' + port);
     
     var addr = listenServer.address();

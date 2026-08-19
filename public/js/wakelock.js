@@ -1,19 +1,34 @@
-// Screen Wake Lock API to keep screen on
+// Screen Wake Lock API to keep phone screen awake during gameplay
 var wakeLock = null;
+
 async function requestWakeLock() {
   try {
     if ('wakeLock' in navigator) {
       wakeLock = await navigator.wakeLock.request('screen');
-      wakeLock.addEventListener('release', function() { console.log('Wake Lock released'); });
-      console.log('Wake Lock is active');
+      wakeLock.addEventListener('release', function() {
+        wakeLock = null;
+        console.log('[WakeLock] Screen Wake Lock released');
+      });
+      console.log('[WakeLock] Screen Wake Lock active');
     }
   } catch (err) {
-    console.error('Wake Lock error:', err);
+    console.log('[WakeLock] Notice: Wake Lock deferred until user touch interaction (' + err.message + ')');
   }
 }
-document.addEventListener('visibilitychange', async function() {
-  if (wakeLock !== null && document.visibilityState === 'visible') {
+
+// Request immediately and on first user gesture
+requestWakeLock();
+['touchstart', 'pointerdown', 'click'].forEach(function(evt) {
+  document.addEventListener(evt, function() {
+    if (!wakeLock) {
+      requestWakeLock();
+    }
+  }, { passive: true, once: true });
+});
+
+// Re-acquire wake lock when switching back to this tab/app
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible' && !wakeLock) {
     requestWakeLock();
   }
 });
-requestWakeLock();
