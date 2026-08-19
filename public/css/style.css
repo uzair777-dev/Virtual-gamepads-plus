@@ -35,6 +35,8 @@ body {
         "Lucida Sans", "Lucida Sans Regular", "Lucida Grande",
         "Lucida Sans Unicode", Geneva, Verdana, sans-serif;
     min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
     margin: 0;
     background-color: #e0e0e0;
 }
@@ -133,7 +135,7 @@ body.slide-left {
 \**********************/
 
 .buttonContainer {
-    position: absolute;
+    position: fixed;
     bottom: 0;
     left: 50%;
     transform: translateX(-50%);
@@ -145,7 +147,7 @@ body.slide-left {
     display: flex;
     flex-direction: row;
     gap: 5px;
-    z-index: 99;
+    z-index: 1000;
 }
 
 .buttonContainer>button {
@@ -278,8 +280,20 @@ body.dark {
 /***********************\
 |*** keyboard styles ***|
 \***********************/
+#keyboard-container {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding-bottom: 3.5rem;
+}
+
 svg#keyboard {
     width: 100%;
+    max-height: calc(100vh - 3.5rem);
 }
 
 svg#keyboard>g>g {
