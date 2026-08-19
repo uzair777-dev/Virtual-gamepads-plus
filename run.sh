@@ -30,6 +30,9 @@ fi
 # Parse command-line flags
 CUSTOM_PORT=""
 GUI_MODE=""
+NO_UPDATE_CHECK=""
+DEBUG_ENV=""
+HOT_RELOAD_ENV=""
 NODE_PASSTHROUGH_ARGS=()
 
 PREV_ARG=""
@@ -54,11 +57,56 @@ for arg in "$@"; do
         --gui)
             GUI_MODE="1"
             ;;
+        --no-update-check|--skip-update-check|-nuc)
+            NO_UPDATE_CHECK="1"
+            ;;
+        --debug)
+            DEBUG_ENV="LOGLEVEL=debug"
+            NO_UPDATE_CHECK="1"
+            ;;
+        --hot-reload)
+            HOT_RELOAD_ENV="HOT_RELOAD=1"
+            ;;
         *)
             NODE_PASSTHROUGH_ARGS+=("$arg")
             ;;
     esac
 done
+
+# Run update check in CLI mode if not bypassed
+if [ -z "$GUI_MODE" ] && [ -z "$NO_UPDATE_CHECK" ] && [ -x "$SCRIPT_DIR/check_update.sh" ]; then
+    UPDATE_RESULT=$("$SCRIPT_DIR/check_update.sh" --json 2>/dev/null || echo '{"status":"error"}')
+    if echo "$UPDATE_RESULT" | grep -q '"status": "update_available"'; then
+        LATEST_VER=$(echo "$UPDATE_RESULT" | grep -oP '"latest_version": "\K[^"]+' || echo "new")
+        CURR_VER=$(echo "$UPDATE_RESULT" | grep -oP '"current_version": "\K[^"]+' || echo "current")
+        
+        # 1. Desktop Notification
+        if command -v notify-send &>/dev/null; then
+            ICON_PATH="$SCRIPT_DIR/public/branding/wheel_logo.png"
+            if [ -f "$ICON_PATH" ]; then
+                notify-send -i "$ICON_PATH" "Virtual Gamepads Plus" "Update Available: v$CURR_VER -> v$LATEST_VER\nRun ./update.sh to update." 2>/dev/null || true
+            else
+                notify-send "Virtual Gamepads Plus" "Update Available: v$CURR_VER -> v$LATEST_VER\nRun ./update.sh to update." 2>/dev/null || true
+            fi
+        fi
+        
+        # 2. Terminal Banner
+        echo -e "\033[1;36m┌────────────────────────────────────────────────────────┐\033[0m"
+        echo -e "\033[1;36m│\033[0m \033[1;32m🚀 Update Available:\033[0m v$CURR_VER -> v$LATEST_VER               \033[1;36m│\033[0m"
+        echo -e "\033[1;36m│\033[0m Run '\033[1m./update.sh\033[0m' or '\033[1mvgp --update\033[0m' to install update!  \033[1;36m│\033[0m"
+        echo -e "\033[1;36m└────────────────────────────────────────────────────────┘\033[0m"
+        echo ""
+        
+        # 3. Interactive prompt
+        if [ -t 0 ] || [ -c /dev/tty ]; then
+            cli_update_ans="n"
+            read -p "Would you like to update now before starting the server? [y/N] " cli_update_ans < /dev/tty || cli_update_ans="n"
+            if [[ "$cli_update_ans" =~ ^[Yy]$ ]]; then
+                exec "$SCRIPT_DIR/update.sh" --relaunch-cli
+            fi
+        fi
+    fi
+fi
 
 # Get IP via default route — works on WiFi, Ethernet, VPN, etc.
 IP_ADDRESS=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[\d.]+')
@@ -187,15 +235,6 @@ if [ $CAN_SUDO_NONINTERACTIVE -eq 1 ]; then
     fi
 fi
 
-HOT_RELOAD_ENV=""
-DEBUG_ENV=""
-for arg in "$@"; do
-	if [ "$arg" == "--debug" ]; then
-		DEBUG_ENV="LOGLEVEL=debug"
-	elif [ "$arg" == "--hot-reload" ]; then
-		HOT_RELOAD_ENV="HOT_RELOAD=1"
-	fi
-done
 
 if [ -n "$GUI_MODE" ]; then
     echo "GUI_STATUS=running"

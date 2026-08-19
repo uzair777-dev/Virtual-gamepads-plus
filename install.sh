@@ -364,6 +364,15 @@ if [ "$1" == "--uninstall" ]; then
     fi
 fi
 
+if [ "$1" == "--update" ] || [ "$1" == "-u" ]; then
+    if [ -f "$INSTALL_DIR/update.sh" ]; then
+        exec bash "$INSTALL_DIR/update.sh" "${@:2}"
+    else
+        echo "Error: Update script not found at $INSTALL_DIR/update.sh"
+        exit 1
+    fi
+fi
+
 if [ "$1" == "--gui" ] || [ "$1" == "-g" ]; then
     if [ -f "$INSTALL_DIR/launch_gui.sh" ]; then
         exec bash "$INSTALL_DIR/launch_gui.sh"
@@ -385,6 +394,15 @@ for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
         echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rc"
     fi
 done
+
+# Ensure executable permissions on all core scripts
+chmod +x "$PROJECT_ABS_DIR/gui.py" \
+         "$PROJECT_ABS_DIR/run.sh" \
+         "$PROJECT_ABS_DIR/update.sh" \
+         "$PROJECT_ABS_DIR/check_update.sh" \
+         "$PROJECT_ABS_DIR/launch_gui.sh" \
+         "$PROJECT_ABS_DIR/install.sh" \
+         "$PROJECT_ABS_DIR/uninstall.sh" 2>/dev/null || true
 
 # Install .desktop launcher entry with StartupWMClass for GNOME, KDE, Hyprland & Wayland panel icon mapping
 mkdir -p "$HOME/.local/share/applications"
@@ -418,6 +436,7 @@ echo ""
 echo "Launch using:"
 echo "  vgp           (CLI mode)"
 echo "  vgp --gui     (GUI mode)"
+echo "  vgp --update  (Update to latest version)"
 echo "  Or via your system application launcher."
 echo ""
 echo "To uninstall:"

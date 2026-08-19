@@ -5,6 +5,7 @@ import subprocess
 import signal
 import json
 import fcntl
+import threading
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import GLib
@@ -13,7 +14,7 @@ from gi.repository import GLib
 GLib.set_prgname("virtual-gamepads-plus")
 GLib.set_application_name("Virtual Gamepads Plus")
 
-from gi.repository import Gtk, GdkPixbuf, Pango
+from gi.repository import Gtk, GdkPixbuf, Pango, Gdk
 
 # Try to import AppIndicator3 for modern system tray, fallback to Gtk.StatusIcon for older DEs
 try:
@@ -33,6 +34,36 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.expanduser('~/.config/virtual-gamepads-gui.json')
 
 import re
+
+def get_current_version():
+    """Read current semantic version from VERSION file or fallback to 1.5.0."""
+    version_file = os.path.join(SCRIPT_DIR, 'VERSION')
+    if os.path.exists(version_file):
+        try:
+            with open(version_file, 'r', encoding='utf-8') as f:
+                return f.read().strip()
+        except Exception:
+            pass
+    return "1.5.0"
+
+def find_terminal_emulator():
+    """Detect available desktop terminal emulator for running update tasks."""
+    import shutil
+    terminals = [
+        ['gnome-terminal', '--'],
+        ['ptyxis', '--'],
+        ['konsole', '-e'],
+        ['xfce4-terminal', '-e'],
+        ['kitty'],
+        ['alacritty', '-e'],
+        ['foot'],
+        ['x-terminal-emulator', '-e'],
+        ['xterm', '-e']
+    ]
+    for term in terminals:
+        if shutil.which(term[0]):
+            return term
+    return None
 
 def is_dark_theme(widget=None):
     """Detect whether current GTK desktop theme is dark or light mode across GNOME, KDE, and XFCE."""
@@ -156,6 +187,42 @@ class VirtualGamepadsGUI(Gtk.Window):
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self.add(vbox)
         
+        # Update Notification Banner (Hidden by default)
+        self.latest_version = None
+        self.update_banner = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.update_banner.set_no_show_all(True)
+        
+        banner_css = Gtk.CssProvider()
+        banner_css.load_from_data(b"""
+        .update-box {
+            background-color: alpha(#2196F3, 0.15);
+            border: 1px solid alpha(#2196F3, 0.5);
+            border-radius: 6px;
+            padding: 6px 12px;
+        }
+        """)
+        self.update_banner.get_style_context().add_class("update-box")
+        self.update_banner.get_style_context().add_provider(
+            banner_css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+        
+        self.update_banner_label = Gtk.Label()
+        self.update_banner_label.set_use_markup(True)
+        self.update_banner_label.set_halign(Gtk.Align.START)
+        self.update_banner_label.set_hexpand(True)
+        self.update_banner.pack_start(self.update_banner_label, True, True, 0)
+        
+        self.update_banner_btn = Gtk.Button(label="Update Now")
+        self.update_banner_btn.connect("clicked", self.on_update_now_clicked)
+        self.update_banner.pack_start(self.update_banner_btn, False, False, 0)
+        
+        self.update_banner_dismiss = Gtk.Button(label="✕")
+        self.update_banner_dismiss.set_relief(Gtk.ReliefStyle.NONE)
+        self.update_banner_dismiss.connect("clicked", lambda b: self.update_banner.hide())
+        self.update_banner.pack_start(self.update_banner_dismiss, False, False, 0)
+        
+        vbox.pack_start(self.update_banner, False, False, 0)
+        
         # Header / Status
         self.status_label = Gtk.Label(label="Status: ● Stopped")
         self.status_label.set_use_markup(True)
@@ -242,6 +309,9 @@ class VirtualGamepadsGUI(Gtk.Window):
         
         self.connect("delete-event", self.on_delete_event)
         
+        # Background update check (non-blocking async thread)
+        threading.Thread(target=self._check_for_updates_async, daemon=True).start()
+        
     def load_config(self):
         self.config = {'minimise_to_tray': False, 'dev_mode': False, 'hot_reload': False, 'debug': False, 'custom_port': ''}
         if os.path.exists(CONFIG_FILE):
@@ -290,6 +360,112 @@ class VirtualGamepadsGUI(Gtk.Window):
         val = entry.get_text().strip()
         self.config['custom_port'] = val
         self.save_config()
+
+    def _check_for_updates_async(self, force=False, callback=None):
+        if not force and self.config.get('dev_mode', False):
+            if callback:
+                GLib.idle_add(callback, {'status': 'dev_mode_bypass'})
+            return
+
+        script_path = os.path.join(SCRIPT_DIR, 'check_update.sh')
+        if not os.path.exists(script_path):
+            if callback:
+                GLib.idle_add(callback, {'status': 'script_missing'})
+            return
+
+        cmd = ['bash', script_path, '--json']
+        if force:
+            cmd.append('--force')
+
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=8)
+            out = proc.stdout.strip()
+            data = {}
+            for line in out.splitlines():
+                if line.startswith('{') and line.endswith('}'):
+                    try:
+                        data = json.loads(line)
+                        break
+                    except Exception:
+                        pass
+            if not data and out:
+                try:
+                    data = json.loads(out)
+                except Exception:
+                    pass
+
+            status = data.get('status')
+            if status == 'update_available':
+                curr_ver = data.get('current_version', get_current_version())
+                latest_ver = data.get('latest_version', 'latest')
+                GLib.idle_add(self._on_update_available, curr_ver, latest_ver)
+
+            if callback:
+                GLib.idle_add(callback, data)
+        except Exception as e:
+            if callback:
+                GLib.idle_add(callback, {'status': 'network_error', 'error': str(e)})
+
+    def _on_update_available(self, current_ver, latest_ver):
+        self.latest_version = latest_ver
+        markup = f"<b>🚀 Update Available:</b> v{current_ver} → <span foreground='#2196F3' weight='bold'>v{latest_ver}</span>"
+        self.update_banner_label.set_markup(markup)
+        self.update_banner.show_all()
+        self.update_banner.show()
+
+        if hasattr(self, 'item_update_tray') and self.item_update_tray:
+            self.item_update_tray.set_label(f"🚀 Update to v{latest_ver}")
+            self.item_update_tray.show()
+
+        # Desktop notification
+        icon_path = os.path.join(SCRIPT_DIR, 'public', 'branding', 'wheel_logo.png')
+        notif_cmd = ['notify-send']
+        if os.path.exists(icon_path):
+            notif_cmd.extend(['-i', icon_path])
+        notif_cmd.extend([
+            'Virtual Gamepads Plus',
+            f'Update Available: v{current_ver} -> v{latest_ver}\nClick "Update Now" in the GUI.'
+        ])
+        try:
+            subprocess.Popen(notif_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+
+    def on_update_now_clicked(self, widget=None):
+        latest_ver = getattr(self, 'latest_version', 'latest')
+        dialog = Gtk.MessageDialog(
+            transient_for=self,
+            flags=Gtk.DialogFlags.MODAL,
+            message_type=Gtk.MessageType.QUESTION,
+            buttons=Gtk.ButtonsType.YES_NO,
+            text=f"Update to v{latest_ver}?"
+        )
+        dialog.format_secondary_text(
+            "Updating will stop the server, fetch latest changes from Git, "
+            "rebuild native modules in a terminal window, and prompt you to restart.\n\n"
+            "Would you like to start the update now?"
+        )
+        res = dialog.run()
+        dialog.destroy()
+
+        if res == Gtk.ResponseType.YES:
+            self.log(f"[UPDATE] Launching updater for v{latest_ver}...\n")
+            update_script = os.path.join(SCRIPT_DIR, 'update.sh')
+            term = find_terminal_emulator()
+
+            # Stop running server instances first
+            self.stop_server()
+
+            try:
+                if term:
+                    subprocess.Popen(term + ['bash', update_script, '--relaunch-gui'])
+                else:
+                    subprocess.Popen(['bash', update_script, '--relaunch-gui'])
+
+                # Close GUI window so update script has unobstructed file access
+                GLib.timeout_add(800, self.cleanup_and_quit)
+            except Exception as e:
+                self.log(f"[UPDATE] Failed to launch update script: {e}\n")
 
     def prompt_server_restart_if_running(self):
         """If server process is currently running, prompt user to restart server to apply new settings."""
@@ -387,6 +563,44 @@ class VirtualGamepadsGUI(Gtk.Window):
         port_box.pack_start(port_label, False, False, 0)
         port_box.pack_start(self.port_entry, True, True, 0)
         vbox.pack_start(port_box, False, False, 2)
+
+        # 3. Version & Check for Updates Row
+        version_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        curr_ver = get_current_version()
+        v_label = Gtk.Label(label=f"Version: v{curr_ver}")
+        v_label.set_halign(Gtk.Align.START)
+        version_box.pack_start(v_label, False, False, 0)
+        
+        status_v_label = Gtk.Label(label="")
+        status_v_label.set_use_markup(True)
+        
+        check_updates_btn = Gtk.Button(label="Check for Updates")
+        
+        def on_manual_check_clicked(btn):
+            check_updates_btn.set_sensitive(False)
+            status_v_label.set_markup("<i>Checking...</i>")
+            
+            def on_done(res):
+                check_updates_btn.set_sensitive(True)
+                st = res.get('status')
+                if st == 'update_available':
+                    lv = res.get('latest_version', '')
+                    status_v_label.set_markup(f"<span foreground='#2196F3' weight='bold'>v{lv} available!</span>")
+                elif st == 'up_to_date':
+                    status_v_label.set_markup("<span foreground='green'>✓ Up to date</span>")
+                elif st == 'network_error':
+                    status_v_label.set_markup("<span foreground='orange'>⚠ Offline / Error</span>")
+                elif st == 'cooldown_active':
+                    status_v_label.set_markup("<span foreground='green'>✓ Up to date</span>")
+                else:
+                    status_v_label.set_markup(f"<span>{st}</span>")
+            
+            threading.Thread(target=lambda: self._check_for_updates_async(force=True, callback=on_done), daemon=True).start()
+            
+        check_updates_btn.connect("clicked", on_manual_check_clicked)
+        version_box.pack_end(check_updates_btn, False, False, 0)
+        version_box.pack_end(status_v_label, False, False, 0)
+        vbox.pack_start(version_box, False, False, 2)
 
         # Visual Separator
         sep = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
@@ -521,10 +735,10 @@ class VirtualGamepadsGUI(Gtk.Window):
         # Smart Fallback Sudo Mode: run without pkexec if /dev/uinput is writable
         has_uinput_perm = os.access('/dev/uinput', os.W_OK)
         if has_uinput_perm:
-            cmd = ['bash', run_script, '--gui']
+            cmd = ['bash', run_script, '--gui', '--no-update-check']
             self.is_elevated = False
         else:
-            cmd = ['pkexec', 'bash', run_script, '--gui']
+            cmd = ['pkexec', 'bash', run_script, '--gui', '--no-update-check']
             self.is_elevated = True
             self.log("Notice: Running elevated via pkexec. Run ./install.sh to enable passwordless mode.\n\n")
 
@@ -774,6 +988,11 @@ class VirtualGamepadsGUI(Gtk.Window):
 
     def setup_tray_icon(self):
         menu = Gtk.Menu()
+        
+        self.item_update_tray = Gtk.MenuItem(label="🚀 Update Available")
+        self.item_update_tray.connect("activate", self.on_tray_show)
+        self.item_update_tray.set_no_show_all(True)
+        menu.append(self.item_update_tray)
         
         item_show = Gtk.MenuItem(label="Show Window")
         item_show.connect("activate", self.on_tray_show)

@@ -119,8 +119,12 @@ fi
 
 if [[ "$remove_config" =~ ^[Yy]$ ]]; then
     rm -f "$CONFIG_FILE" 2>/dev/null || true
+    rm -rf "$HOME/.cache/virtual-gamepads-plus" 2>/dev/null || true
     echo "  Removed $CONFIG_FILE"
 fi
+
+# Clean up update cache
+rm -rf "$HOME/.cache/virtual-gamepads-plus" 2>/dev/null || true
 
 echo ""
 echo -e "${GREEN}${BOLD}Virtual Gamepads Plus uninstalled.${RESET}"
