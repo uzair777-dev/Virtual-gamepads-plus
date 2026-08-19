@@ -252,6 +252,24 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.stop_btn.set_sensitive(False)
         button_box.pack_start(self.stop_btn, False, False, 0)
 
+        # Main Update Now button (Visible when update is available)
+        self.main_update_btn = Gtk.Button(label="🚀 Update Now")
+        self.main_update_btn.connect("clicked", self.on_update_now_clicked)
+        self.main_update_btn.set_no_show_all(True)
+        btn_css = Gtk.CssProvider()
+        btn_css.load_from_data(b"""
+        button.update-btn-accent {
+            background: #2196F3;
+            color: white;
+            font-weight: bold;
+        }
+        """)
+        self.main_update_btn.get_style_context().add_class("update-btn-accent")
+        self.main_update_btn.get_style_context().add_provider(
+            btn_css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+        button_box.pack_start(self.main_update_btn, False, False, 0)
+
         # Gear/Settings button with theme-adaptive gear.svg icon
         gear_icon_path = os.path.join(SCRIPT_DIR, 'public', 'images', 'icons', 'gear.svg')
         if os.path.exists(gear_icon_path):
@@ -410,11 +428,20 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.latest_version = latest_ver
         markup = f"<b>🚀 Update Available:</b> v{current_ver} → <span foreground='#2196F3' weight='bold'>v{latest_ver}</span>"
         self.update_banner_label.set_markup(markup)
+        
+        # Un-suppress and show top banner
+        self.update_banner.set_no_show_all(False)
         self.update_banner.show_all()
-        self.update_banner.show()
+        
+        # Un-suppress and show main button row update button
+        if hasattr(self, 'main_update_btn'):
+            self.main_update_btn.set_label(f"🚀 Update (v{latest_ver})")
+            self.main_update_btn.set_no_show_all(False)
+            self.main_update_btn.show()
 
         if hasattr(self, 'item_update_tray') and self.item_update_tray:
             self.item_update_tray.set_label(f"🚀 Update to v{latest_ver}")
+            self.item_update_tray.set_no_show_all(False)
             self.item_update_tray.show()
 
         # Desktop notification
@@ -496,7 +523,7 @@ class VirtualGamepadsGUI(Gtk.Window):
         modal_win = Gtk.Window(title="Settings")
         modal_win.set_transient_for(self)
         modal_win.set_modal(True)
-        modal_win.set_default_size(420, 340)
+        modal_win.set_default_size(460, 360)
         modal_win.set_position(Gtk.WindowPosition.CENTER_ON_PARENT)
 
         # Snapshot initial server settings state when modal opens
@@ -574,6 +601,13 @@ class VirtualGamepadsGUI(Gtk.Window):
         status_v_label = Gtk.Label(label="")
         status_v_label.set_use_markup(True)
         
+        modal_update_btn = Gtk.Button(label="🚀 Update Now")
+        modal_update_btn.connect("clicked", lambda b: (modal_win.destroy(), self.on_update_now_clicked(None)))
+        modal_update_btn.set_no_show_all(True)
+        if getattr(self, 'latest_version', None):
+            modal_update_btn.set_no_show_all(False)
+            modal_update_btn.show()
+        
         check_updates_btn = Gtk.Button(label="Check for Updates")
         
         def on_manual_check_clicked(btn):
@@ -586,6 +620,8 @@ class VirtualGamepadsGUI(Gtk.Window):
                 if st == 'update_available':
                     lv = res.get('latest_version', '')
                     status_v_label.set_markup(f"<span foreground='#2196F3' weight='bold'>v{lv} available!</span>")
+                    modal_update_btn.set_no_show_all(False)
+                    modal_update_btn.show()
                 elif st == 'up_to_date':
                     status_v_label.set_markup("<span foreground='green'>✓ Up to date</span>")
                 elif st == 'network_error':
@@ -598,6 +634,7 @@ class VirtualGamepadsGUI(Gtk.Window):
             threading.Thread(target=lambda: self._check_for_updates_async(force=True, callback=on_done), daemon=True).start()
             
         check_updates_btn.connect("clicked", on_manual_check_clicked)
+        version_box.pack_end(modal_update_btn, False, False, 0)
         version_box.pack_end(check_updates_btn, False, False, 0)
         version_box.pack_end(status_v_label, False, False, 0)
         vbox.pack_start(version_box, False, False, 2)

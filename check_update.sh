@@ -110,33 +110,19 @@ if [ $FETCH_OK -eq 0 ]; then
     exit 2
 fi
 
-# 7. Check if origin/main has commits ahead of HEAD
-REMOTE_COMMITS_AHEAD=$(git rev-list HEAD..origin/main --count 2>/dev/null || echo 0)
-if [ "$REMOTE_COMMITS_AHEAD" -le 0 ]; then
-    output_msg "Application is up to date (v$LOCAL_VERSION)."
-    output_json '{"status": "up_to_date", "current_version": "'"$LOCAL_VERSION"'"}'
-    exit 1
-fi
-
-# 8. Check if VERSION file was modified in origin/main
-VERSION_CHANGED=$(git diff --name-only HEAD..origin/main 2>/dev/null | grep -E '^VERSION$' || true)
-if [ -z "$VERSION_CHANGED" ]; then
-    # Commits exist, but VERSION was not modified (e.g. docs, WIP, intermediate commits)
-    output_msg "Application is up to date (v$LOCAL_VERSION). No new release version published."
-    output_json '{"status": "up_to_date", "current_version": "'"$LOCAL_VERSION"'", "commits_ahead": '$REMOTE_COMMITS_AHEAD'}'
-    exit 1
-fi
-
-# 9. Read remote VERSION file from origin/main
+# 7. Read remote VERSION file from origin/main (fallback to origin/main:package.json)
 REMOTE_VERSION=$(git show origin/main:VERSION 2>/dev/null | tr -d '[:space:]' || echo "")
+if [ -z "$REMOTE_VERSION" ]; then
+    REMOTE_VERSION=$(git show origin/main:package.json 2>/dev/null | grep -oP '"version":\s*"\K[^"]+' || echo "")
+fi
 
 if [ -z "$REMOTE_VERSION" ]; then
-    output_msg "Notice: Could not read remote VERSION file."
+    output_msg "Notice: Could not read remote VERSION file from origin/main."
     output_json '{"status": "error_reading_remote_version"}'
     exit 1
 fi
 
-# 10. Perform SemVer comparison: only trigger if remote_version > local_version
+# 8. Perform SemVer comparison: only trigger if remote_version > local_version
 if version_gt "$REMOTE_VERSION" "$LOCAL_VERSION"; then
     output_msg "Update Available: v$LOCAL_VERSION -> v$REMOTE_VERSION"
     output_json '{"status": "update_available", "current_version": "'"$LOCAL_VERSION"'", "latest_version": "'"$REMOTE_VERSION"'"}'
