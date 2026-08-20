@@ -16,6 +16,9 @@ This repo is a fork of [alr86/node-virtual-gamepads-revived](https://github.com/
   
 **Please note that what the other developer did with other things and stuff, are preserved as it is, as it doesnt conflict with new stuff. I thought It should be there as so that the Mantra of "If it works, dont f\*\*king touch it"**
 
+> [!NOTE]
+> Please make an issue for any feature requests or any bug, I will only be working on that going forward, as i have other project that needs to be worked on. Thank you for your understanding
+
 View [TODO](#todo) for Upcoming stuffs, or stuff I gave up on
 
 ## Install and run:
