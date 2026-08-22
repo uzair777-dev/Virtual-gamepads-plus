@@ -107,22 +107,28 @@
       <button id="setJoystick">joystick</button>
       <button id="goFullscreen">fullscreen</button>
     </menu>
-    <button class="action-btn" id="btn-fullscreen" onclick="toggleFullscreen()">
-      <img id="btn-fullscreen-icon" src="images/icons/fullscreen.svg" />
-    </button>
-    <button class="action-btn" id="btn-dark" onclick="toggleDark()">
-      <img id="btn-dark-icon" src="images/icons/moon.svg" />
-    </button>
-    <button class="action-btn" id="btn-back" onclick="window.location.href='/'">
-      <img id="btn-back-icon" src="images/icons/back.svg" />
-    </button>
-    <span id="settings-gear">
-      <img id="gear-svg" src="images/icons/settings.svg" />
-    </span>
+    <div class="buttonContainer">
+      <button id="btn-back" onclick="window.location.href='/'">
+        <img id="btn-back-icon" src="images/icons/back.svg" />
+      </button>
+      <button id="btn-fullscreen" onclick="toggleFullscreen()">
+        <img id="btn-fullscreen-icon" src="images/icons/fullscreen.svg" />
+      </button>
+      <button id="btn-dark" onclick="toggleDark()">
+        <img id="btn-dark-icon" src="images/icons/moon.svg" />
+      </button>
+      <span id="settings-gear">
+        <img id="gear-svg" src="images/icons/settings.svg" />
+      </span>
+    </div>
     <section id="touchpad" style="display: block">
       <div id="touchpad-area"></div>
-      <div id="touchpad-btn_left"></div>
-      <div id="touchpad-btn_right"></div>
+      <div id="touchpad-btn_left" class="touchpad-btn">
+        <span class="btn-label" id="label-btn_left">Left</span>
+      </div>
+      <div id="touchpad-btn_right" class="touchpad-btn">
+        <span class="btn-label" id="label-btn_right">Right</span>
+      </div>
     </section>
     <section id="joystick" style="display: none"></section>
     <div id="connecting">

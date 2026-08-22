@@ -11,6 +11,7 @@ html, body {
     margin: 0;
     touch-action: none;
     overscroll-behavior: none;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 body {
@@ -20,65 +21,21 @@ body {
     right: 0;
     bottom: 0;
     left: 0;
+    background: #1a1a1a;
 }
 
 body.dark {
-    background: #292929 url(../images/noise.png);
-}
-
-html {
-    font-family: sans-serif;
-}
-
-.action-btn {
-    position: absolute;
-    background: none;
-    border: none;
-    cursor: pointer;
-    z-index: 999;
-    padding: 0;
-    margin: 0;
-}
-
-.action-btn img {
-    width: 3rem;
-    height: 3rem;
-    display: block;
-}
-
-#btn-fullscreen {
-    top: .2rem;
-    left: .2rem;
-}
-
-#btn-dark {
-    top: .2rem;
-    left: 3.4rem;
-}
-
-#btn-back {
-    top: .2rem;
-    right: 3.4rem;
-}
-
-#menu {
-    background: #222;
-    margin: 0;
-    padding: 0;
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    height: 50px;
-    z-index: 10;
+    background: #121212 url(../images/noise.png);
 }
 
 #touchpad {
+    position: absolute;
     left: 0;
     right: 0;
     bottom: 0;
     top: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 #touchpad-area {
@@ -86,30 +43,60 @@ html {
     left: 0;
     top: 0;
     right: 0;
-    bottom: 20%;
-    background: -moz-radial-gradient(ellipse farthest-corner, rgba(255, 255, 255, 0.10) 0%, rgba(0, 0, 0, 0.01) 100%); /* FF3.6+ */
-    background: -webkit-radial-gradient(ellipse farthest-corner, rgba(255, 255, 255, 0.10) 0%, rgba(0, 0, 0, 0.01) 100%); /* Chrome10+,Safari5.1+ */
-    border-bottom: 1px solid #242424;
+    bottom: 22%;
+    background: radial-gradient(ellipse farthest-corner, rgba(255, 255, 255, 0.07) 0%, rgba(0, 0, 0, 0.25) 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    touch-action: none;
+}
+
+body.dark #touchpad-area {
+    background: radial-gradient(ellipse farthest-corner, rgba(255, 255, 255, 0.04) 0%, rgba(0, 0, 0, 0.5) 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.touchpad-btn {
+    position: absolute;
+    top: 78%;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.04);
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    cursor: pointer;
+    touch-action: none;
+    transition: background 0.1s ease;
 }
 
 #touchpad-btn_left {
     left: 0;
     right: 50%;
-    border-right: 1px solid #242424;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 #touchpad-btn_right {
     left: 50%;
     right: 0;
-    border-left: 1px solid #383838;
+    border-left: 1px solid rgba(0, 0, 0, 0.4);
 }
 
-#touchpad-btn_left,
-#touchpad-btn_right {
-    position: absolute;
-    top: 80%;
-    bottom: 0;
-    border-top: 1px solid #383838;
+.touchpad-btn:active,
+.touchpad-btn.active {
+    background: rgba(255, 255, 255, 0.18) !important;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.btn-label {
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.95rem;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    pointer-events: none;
+    text-transform: uppercase;
+}
+
+.touchpad-btn.active .btn-label {
+    color: #fff;
 }
 
 #connecting {
@@ -123,39 +110,9 @@ html {
 }
 
 @keyframes blink {
-    0% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.4;
-    }
-    100% {
-        opacity: 1;
-    }
-}
-
-@-webkit-keyframes blink {
-    0% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.4;
-    }
-    100% {
-        opacity: 1;
-    }
-}
-
-@-moz-keyframes blink {
-    0% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.4;
-    }
-    100% {
-        opacity: 1;
-    }
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
 }
 
 #connecting span {
@@ -166,24 +123,6 @@ html {
     top: 50%;
     left: 0;
     right: 0;
-    bottom: 50%;
-    -webkit-animation: blink 0.7s infinite;
-    -moz-animation: blink 0.7s infinite;
+    transform: translateY(-50%);
     animation: blink 0.7s infinite;
-}
-
-#settings-gear {
-    position: absolute;
-    top: .2rem;
-    right: .2rem;
-    float: right;
-    cursor: pointer;
-    z-index: 999;
-}
-
-#settings-gear img {
-    width: 3rem;
-    height: 3rem;
-    fill: #666;
-    cursor: pointer;
 }
