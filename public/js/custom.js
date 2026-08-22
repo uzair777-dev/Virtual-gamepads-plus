@@ -26,18 +26,30 @@ function exitFullscreen() {
 }
 
 function toggleFullscreen() {
+  if (document.fullscreenElement == null && document.webkitFullscreenElement == null && document.msFullscreenElement == null) {
+    openFullscreen();
+  } else {
+    exitFullscreen();
+  }
+}
+
+function syncFullscreenUI() {
   const fullscreenBtnIcon = document.getElementById("btn-fullscreen-icon");
   const fullscreenBtn = document.getElementById("btn-fullscreen");
-  if (document.fullscreenElement == null) {
-    openFullscreen();
+  if (!fullscreenBtn || !fullscreenBtnIcon) return;
+  const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+  if (isFS) {
     fullscreenBtnIcon.src = "images/icons/fullscreen-exit.svg";
     fullscreenBtn.classList.add("active");
   } else {
-    exitFullscreen();
     fullscreenBtnIcon.src = "images/icons/fullscreen.svg";
     fullscreenBtn.classList.remove("active");
   }
 }
+
+document.addEventListener("fullscreenchange", syncFullscreenUI);
+document.addEventListener("webkitfullscreenchange", syncFullscreenUI);
+document.addEventListener("msfullscreenchange", syncFullscreenUI);
 
 function toggleDark() {
   const darkBtn = document.getElementById("btn-dark");

@@ -32,12 +32,12 @@ define(["jquery", "./utils", "./settings"], function ($, util, settings) {
             if ($(this).data("left")) {
                 return;
             }
-            if (event.target !== document.elementFromPoint(
-                    event.originalEvent.targetTouches[0].pageX,
-                    event.originalEvent.targetTouches[0].pageY)) {
-                $(this).trigger("mouseleave")
-                  .data("left", "true");
-
+            var touch = event.originalEvent && event.originalEvent.targetTouches && event.originalEvent.targetTouches[0];
+            if (touch) {
+                var elem = document.elementFromPoint(touch.pageX, touch.pageY);
+                if (!elem || !this.contains(elem)) {
+                    $(this).trigger("mouseleave").data("left", "true");
+                }
             }
         }).on("touchend", function (event) {
             $(this).data("left", null);

@@ -2,24 +2,22 @@
  * Keyboard Touchpad Extension
  * Adds toggleable touchpad + gesture functionality to keyboard.html.
  *
- * Bugs fixed from v1:
- *   - emit() infinite recursion on non-array calls (broke dedicated buttons)
- *   - No movement threshold → taps misclassified as drags
- *   - Scroll axes swapped (horizontal movement → vertical scroll)
- *   - Scroll sensitivity too high (same power curve as cursor)
- * New features:
- *   - Natural scrolling toggle
- *   - Left-hand mode toggle (swaps button areas)
+ * Supported Gestures & Drag Modes:
+ *   - 1-Finger Instant Subpixel Motion: 0ms lag, zero deadzone, smooth 60fps cursor
+ *   - 1-Finger Tap-to-Drag: Quick tap + touch down and drag to hold left mouse button
+ *   - Two-Handed Drag: Hold physical left button + drag with another finger
+ *   - 3-Finger Drag & Drop: Move with 3 fingers to hold left click and drag
+ *   - 2-Finger Vertical Scroll: Smooth integer detent scrolling (supports Natural Scrolling)
+ *   - Multi-Touch Taps: 1-tap (left click), 2-tap (right click), 3-tap (middle click), 4-tap (side button)
+ *   - Left-Hand Mode: Swaps left and right mouse buttons
+ *   - Shared settings with standalone touchpad.html via localStorage
  */
 (function () {
     'use strict';
 
     // ==============================
-    // CONSTANTS
+    // CONFIGURATION & DEFAULTS
     // ==============================
-    var MOVE_THRESHOLD = 8;    // px – min movement before counting as drag (not tap)
-    var SCROLL_DAMPING = 0.15; // scale factor to tame scroll vs cursor sensitivity
-
     var DEFAULTS = {
         speed: 2.0,
         acceleration: 1.5,
@@ -27,11 +25,7 @@
         leftHandMode: false
     };
 
-    var LS_KEY = 'touchpadSettings'; // shared with standalone touchpad page
-
-    // ==============================
-    // SETTINGS
-    // ==============================
+    var LS_KEY = 'touchpadSettings';
     var localStorageOK = (typeof Storage !== 'undefined');
 
     var tpSettings = {
@@ -78,7 +72,9 @@
     // HAPTIC FEEDBACK
     // ==============================
     function haptic(ms) {
-        try { navigator.vibrate && navigator.vibrate(ms || 40); } catch (e) {}
+        try {
+            if (navigator.vibrate) navigator.vibrate(ms || 35);
+        } catch (e) {}
     }
 
     // ==============================
@@ -89,54 +85,84 @@
     var socket = null;
     var touchpadId = null;
 
-    var clicks = 0;           // bitmask: bit 0 = left held, bit 1 = right held
-    var touches = 0;          // finger count in the main area
-    var touchindex = 0;       // index of tracked finger
-    var isTouchMove = false;  // true once movement exceeds threshold
-    var totalMoveDist = 0;    // accumulated px since touchstart
-    var current_x = 0;
-    var current_y = 0;
-    var drag = 0;             // 1 = currently in 3-finger drag
+    // Physical button clicks
+    var clicks = 0; // bitmask: 1 = left button, 2 = right button
 
-    // Desktop mouse fallback
+    // Gesture tracking state machine
+    var maxTouches = 0;
+    var gestureStartTime = 0;
+    var gestureStartX = 0;
+    var gestureStartY = 0;
+    var prevX = 0;
+    var prevY = 0;
+    var hasMoved = false;
+    var totalMoveDist = 0;
+
+    // Tap-to-drag state
+    var lastTapTime = 0;
+    var lastTapX = 0;
+    var lastTapY = 0;
+    var isTapDragging = false;
+
+    // 3-finger drag state
+    var isThreeFingerDragging = false;
+
+    // Subpixel & scroll accumulators
+    var accumX = 0.0;
+    var accumY = 0.0;
+    var scrollAccumY = 0.0;
+
+    // Desktop mouse fallback state
     var mouseDown = false;
     var mouseMoved = false;
 
-    // DOM refs
+    // DOM Elements
     var toggleBtn, toggleIcon, overlay, kbContainer;
     var tpArea, btnLeft, btnRight;
 
     // ==============================
-    // EMIT HELPER (fixed – no recursion)
+    // EMIT HELPER
     // ==============================
     function emitTP(evType, code, value) {
         if (!socket) return;
-        var payload = { type: evType, code: code, value: value };
+        var payload = {
+            type: evType,
+            code: code,
+            value: value
+        };
         if (touchpadId != null) payload.touchpadId = touchpadId;
         socket.emit('touchpadEvent', payload);
     }
 
     // ==============================
-    // LEFT-HAND MODE HELPERS
+    // BUTTON CODE MAPPING (Left-Hand Mode)
     // ==============================
-    function leftBtnCode()  { return tpSettings.leftHandMode ? 0x111 : 0x110; }
-    function rightBtnCode() { return tpSettings.leftHandMode ? 0x110 : 0x111; }
+    function leftBtnCode() {
+        return tpSettings.leftHandMode ? 0x111 /* BTN_RIGHT */ : 0x110 /* BTN_LEFT */;
+    }
+    function rightBtnCode() {
+        return tpSettings.leftHandMode ? 0x110 /* BTN_LEFT */ : 0x111 /* BTN_RIGHT */;
+    }
 
     // ==============================
-    // DEDICATED BUTTON HANDLERS
+    // DEDICATED BOTTOM BUTTONS
     // ==============================
     function onLeftStart(e) {
         if (e && e.cancelable) e.preventDefault();
         haptic(30);
         if (btnLeft) btnLeft.classList.add('active');
-        if (drag === 0) emitTP(1 /* EV_KEY */, leftBtnCode(), 1);
+        if (!isTapDragging && !isThreeFingerDragging) {
+            emitTP(1 /* EV_KEY */, leftBtnCode(), 1);
+        }
         clicks |= 1;
     }
 
     function onLeftEnd(e) {
         if (e && e.cancelable) e.preventDefault();
         if (btnLeft) btnLeft.classList.remove('active');
-        if (drag === 0) emitTP(1 /* EV_KEY */, leftBtnCode(), 0);
+        if (!isTapDragging && !isThreeFingerDragging) {
+            emitTP(1 /* EV_KEY */, leftBtnCode(), 0);
+        }
         clicks &= ~1;
     }
 
@@ -156,107 +182,178 @@
     }
 
     // ==============================
-    // TOUCH AREA HANDLERS
+    // TOUCHPAD AREA GESTURES (e.targetTouches)
     // ==============================
     function onAreaTouchStart(e) {
         if (e.cancelable) e.preventDefault();
-        // Count only area touches (subtract button-area touches)
-        touches = e.touches.length - (clicks & 1) - ((clicks & 2) >> 1);
-        touchindex = e.touches.length - 1;
-        isTouchMove = false;
-        totalMoveDist = 0;
-        var t = e.touches[touchindex];
-        if (t) {
-            current_x = t.pageX;
-            current_y = t.pageY;
+        var numTouches = e.targetTouches.length;
+        var t = e.targetTouches[0];
+        if (!t) return;
+
+        var now = Date.now();
+
+        if (numTouches === 1) {
+            var timeSinceLastTap = now - lastTapTime;
+            var distFromLastTap = Math.hypot(t.pageX - lastTapX, t.pageY - lastTapY);
+
+            // Double-tap and hold -> Activate Tap-to-Drag
+            if (timeSinceLastTap < 320 && distFromLastTap < 40) {
+                isTapDragging = true;
+                emitTP(1 /* EV_KEY */, 0x110 /* BTN_LEFT */, 1);
+                haptic(30);
+            } else {
+                isTapDragging = false;
+            }
+
+            gestureStartTime = now;
+            gestureStartX = t.pageX;
+            gestureStartY = t.pageY;
+            prevX = t.pageX;
+            prevY = t.pageY;
+            hasMoved = false;
+            totalMoveDist = 0;
+            maxTouches = 1;
+            accumX = 0;
+            accumY = 0;
+            scrollAccumY = 0;
+        } else {
+            // Multi-finger touch active
+            if (isTapDragging) {
+                emitTP(1 /* EV_KEY */, 0x110 /* BTN_LEFT */, 0);
+                isTapDragging = false;
+            }
+            maxTouches = Math.max(maxTouches, numTouches);
+            prevX = t.pageX;
+            prevY = t.pageY;
         }
     }
 
     function onAreaTouchMove(e) {
         if (e.cancelable) e.preventDefault();
+        var numTouches = e.targetTouches.length;
+        maxTouches = Math.max(maxTouches, numTouches);
 
-        // Handle finger lift during multi-touch
-        if (touchindex + 1 > e.touches.length) {
-            touchindex = e.touches.length - 1;
-            return;
-        }
-
-        var t = e.touches[touchindex];
+        var t = e.targetTouches[0];
         if (!t) return;
 
-        var dx = t.pageX - current_x;
-        var dy = t.pageY - current_y;
-        current_x = t.pageX;
-        current_y = t.pageY;
+        var dx = t.pageX - prevX;
+        var dy = t.pageY - prevY;
+        prevX = t.pageX;
+        prevY = t.pageY;
 
-        // Accumulate movement for tap/drag discrimination
         totalMoveDist += Math.abs(dx) + Math.abs(dy);
-        if (totalMoveDist < MOVE_THRESHOLD) return; // still within "tap" zone
+        if (totalMoveDist > 3) {
+            hasMoved = true;
+        }
 
-        isTouchMove = true;
-
-        // Apply speed & non-linear acceleration
         var spd = tpSettings.speed;
         var acc = tpSettings.acceleration;
-        var x = (dx >= 0 ? 1 : -1) * Math.pow(Math.abs(spd * dx), acc);
-        var y = (dy >= 0 ? 1 : -1) * Math.pow(Math.abs(spd * dy), acc);
 
-        if (touches >= 3) {
-            // ── 3-finger drag & drop ──
-            if (drag === 0 && (clicks & 1) === 0) {
+        if (numTouches >= 3) {
+            // ── 3-Finger Drag & Drop ──
+            if (!isThreeFingerDragging && clicks === 0 && !isTapDragging) {
                 emitTP(1 /* EV_KEY */, 0x110 /* BTN_LEFT */, 1);
+                isThreeFingerDragging = true;
             }
-            drag = 1;
-            emitTP(2 /* EV_REL */, 0 /* REL_X */, x);
-            emitTP(2 /* EV_REL */, 1 /* REL_Y */, y);
 
-        } else if (touches === 2) {
-            // ── 2-finger scroll ──
-            // FIXED: vertical finger movement → REL_WHEEL (vertical scroll)
-            //        horizontal finger movement → REL_HWHEEL (horizontal scroll)
+            var rawX = (dx >= 0 ? 1 : -1) * Math.pow(Math.abs(spd * dx), acc);
+            var rawY = (dy >= 0 ? 1 : -1) * Math.pow(Math.abs(spd * dy), acc);
+            accumX += rawX;
+            accumY += rawY;
+
+            var sendX = Math.trunc(accumX);
+            var sendY = Math.trunc(accumY);
+            if (sendX !== 0 || sendY !== 0) {
+                accumX -= sendX;
+                accumY -= sendY;
+                if (sendX !== 0) emitTP(2 /* EV_REL */, 0 /* REL_X */, sendX);
+                if (sendY !== 0) emitTP(2 /* EV_REL */, 1 /* REL_Y */, sendY);
+            }
+
+        } else if (numTouches === 2) {
+            // ── 2-Finger Vertical Scroll ──
             var scrollSign = tpSettings.naturalScrolling ? 1 : -1;
-            var sy = scrollSign * y * SCROLL_DAMPING;
-            var sx = scrollSign * x * SCROLL_DAMPING;
-            emitTP(2 /* EV_REL */, 8 /* REL_WHEEL  */, sy);
-            emitTP(2 /* EV_REL */, 6 /* REL_HWHEEL */, sx);
+            scrollAccumY += (dy * scrollSign * 0.15 * spd);
+            var wheelSteps = Math.trunc(scrollAccumY);
+            if (wheelSteps !== 0) {
+                scrollAccumY -= wheelSteps;
+                emitTP(2 /* EV_REL */, 8 /* REL_WHEEL */, wheelSteps);
+            }
 
-        } else {
-            // ── 1-finger cursor move ──
-            emitTP(2 /* EV_REL */, 0 /* REL_X */, x);
-            emitTP(2 /* EV_REL */, 1 /* REL_Y */, y);
+        } else if (numTouches === 1) {
+            // ── 1-Finger Motion (Instant Subpixel Cursor Move / Tap-Drag) ──
+            var rawX = (dx >= 0 ? 1 : -1) * Math.pow(Math.abs(spd * dx), acc);
+            var rawY = (dy >= 0 ? 1 : -1) * Math.pow(Math.abs(spd * dy), acc);
+            accumX += rawX;
+            accumY += rawY;
+
+            var sendX = Math.trunc(accumX);
+            var sendY = Math.trunc(accumY);
+            if (sendX !== 0 || sendY !== 0) {
+                accumX -= sendX;
+                accumY -= sendY;
+                if (sendX !== 0) emitTP(2 /* EV_REL */, 0 /* REL_X */, sendX);
+                if (sendY !== 0) emitTP(2 /* EV_REL */, 1 /* REL_Y */, sendY);
+            }
         }
     }
 
     function onAreaTouchEnd(e) {
         if (e.cancelable) e.preventDefault();
 
-        if (isTouchMove) {
-            // End of a drag gesture
-            if (drag === 1 && (clicks & 1) === 0) {
+        // Only evaluate when all touches on the touchpad area have lifted
+        if (e.targetTouches.length === 0) {
+            var duration = Date.now() - gestureStartTime;
+
+            if (isTapDragging) {
+                // Release Tap-to-Drag
                 emitTP(1 /* EV_KEY */, 0x110 /* BTN_LEFT */, 0);
+                isTapDragging = false;
+                lastTapTime = 0;
+            } else if (isThreeFingerDragging) {
+                // Release 3-Finger Drag
+                emitTP(1 /* EV_KEY */, 0x110 /* BTN_LEFT */, 0);
+                isThreeFingerDragging = false;
+                lastTapTime = 0;
+            } else if (!hasMoved && duration < 320 && clicks === 0) {
+                // Clean Tap Gesture
+                if (maxTouches === 1) {
+                    // 1-Finger Tap -> Left Click (and remember for double-tap)
+                    haptic(25);
+                    emitTP(1, 0x110, 1);
+                    emitTP(1, 0x110, 0);
+                    lastTapTime = Date.now();
+                    lastTapX = gestureStartX;
+                    lastTapY = gestureStartY;
+                } else if (maxTouches === 2) {
+                    // 2-Finger Tap -> Right Click
+                    haptic(35);
+                    emitTP(1, 0x111, 1);
+                    emitTP(1, 0x111, 0);
+                    lastTapTime = 0;
+                } else if (maxTouches === 3) {
+                    // 3-Finger Tap -> Middle Click
+                    haptic(45);
+                    emitTP(1, 0x112, 1);
+                    emitTP(1, 0x112, 0);
+                    lastTapTime = 0;
+                } else if (maxTouches >= 4) {
+                    // 4-Finger Tap -> Side Button
+                    haptic(50);
+                    emitTP(1, 0x113, 3);
+                    emitTP(1, 0x113, 3);
+                    lastTapTime = 0;
+                }
+            } else {
+                lastTapTime = 0;
             }
-            drag = 0;
-        } else if (clicks === 0) {
-            // ── Pure tap (no movement, no button-area touches) ──
-            if (touches === 1) {
-                haptic(25);
-                emitTP(1, 0x110, 1); // BTN_LEFT press
-                emitTP(1, 0x110, 0); // BTN_LEFT release
-            } else if (touches === 2) {
-                haptic(35);
-                emitTP(1, 0x111, 1); // BTN_RIGHT press
-                emitTP(1, 0x111, 0); // BTN_RIGHT release
-            } else if (touches === 3) {
-                haptic(45);
-                emitTP(1, 0x112, 1); // BTN_MIDDLE press
-                emitTP(1, 0x112, 0); // BTN_MIDDLE release
-            } else if (touches >= 4) {
-                haptic(50);
-                emitTP(1, 0x113, 3); // BTN_SIDE (matches original driver value)
-                emitTP(1, 0x113, 3);
-            }
+
+            hasMoved = false;
+            maxTouches = 0;
+            accumX = 0;
+            accumY = 0;
+            scrollAccumY = 0;
         }
-        touches = 0;
     }
 
     // ==============================
@@ -266,20 +363,34 @@
         if (e.button !== 0) return;
         mouseDown = true;
         mouseMoved = false;
-        current_x = e.pageX;
-        current_y = e.pageY;
+        prevX = e.pageX;
+        prevY = e.pageY;
+        accumX = 0;
+        accumY = 0;
     }
 
     function onMouseMove(e) {
         if (!mouseDown) return;
-        var dx = e.pageX - current_x;
-        var dy = e.pageY - current_y;
+        var dx = e.pageX - prevX;
+        var dy = e.pageY - prevY;
+        prevX = e.pageX;
+        prevY = e.pageY;
+
         var spd = tpSettings.speed;
         var acc = tpSettings.acceleration;
-        emitTP(2, 0, (dx >= 0 ? 1 : -1) * Math.pow(Math.abs(spd * dx), acc));
-        emitTP(2, 1, (dy >= 0 ? 1 : -1) * Math.pow(Math.abs(spd * dy), acc));
-        current_x = e.pageX;
-        current_y = e.pageY;
+        var rawX = (dx >= 0 ? 1 : -1) * Math.pow(Math.abs(spd * dx), acc);
+        var rawY = (dy >= 0 ? 1 : -1) * Math.pow(Math.abs(spd * dy), acc);
+        accumX += rawX;
+        accumY += rawY;
+
+        var sendX = Math.trunc(accumX);
+        var sendY = Math.trunc(accumY);
+        if (sendX !== 0 || sendY !== 0) {
+            accumX -= sendX;
+            accumY -= sendY;
+            if (sendX !== 0) emitTP(2, 0, sendX);
+            if (sendY !== 0) emitTP(2, 1, sendY);
+        }
         mouseMoved = true;
     }
 
@@ -298,59 +409,59 @@
     function bindListeners() {
         if (tpArea) {
             tpArea.addEventListener('touchstart', onAreaTouchStart, { passive: false });
-            tpArea.addEventListener('touchmove',  onAreaTouchMove,  { passive: false });
-            tpArea.addEventListener('touchend',   onAreaTouchEnd,   { passive: false });
-            tpArea.addEventListener('touchcancel', onAreaTouchEnd,  { passive: false });
+            tpArea.addEventListener('touchmove', onAreaTouchMove, { passive: false });
+            tpArea.addEventListener('touchend', onAreaTouchEnd, { passive: false });
+            tpArea.addEventListener('touchcancel', onAreaTouchEnd, { passive: false });
             tpArea.addEventListener('mousedown', onMouseDown);
             window.addEventListener('mousemove', onMouseMove);
             window.addEventListener('mouseup', onMouseUp);
         }
         if (btnLeft) {
-            btnLeft.addEventListener('touchstart', onLeftStart,  { passive: false });
-            btnLeft.addEventListener('touchend',   onLeftEnd,    { passive: false });
-            btnLeft.addEventListener('touchcancel', onLeftEnd,   { passive: false });
+            btnLeft.addEventListener('touchstart', onLeftStart, { passive: false });
+            btnLeft.addEventListener('touchend', onLeftEnd, { passive: false });
+            btnLeft.addEventListener('touchcancel', onLeftEnd, { passive: false });
             btnLeft.addEventListener('mousedown', onLeftStart);
-            btnLeft.addEventListener('mouseup',   onLeftEnd);
+            btnLeft.addEventListener('mouseup', onLeftEnd);
         }
         if (btnRight) {
             btnRight.addEventListener('touchstart', onRightStart, { passive: false });
-            btnRight.addEventListener('touchend',   onRightEnd,   { passive: false });
-            btnRight.addEventListener('touchcancel', onRightEnd,  { passive: false });
+            btnRight.addEventListener('touchend', onRightEnd, { passive: false });
+            btnRight.addEventListener('touchcancel', onRightEnd, { passive: false });
             btnRight.addEventListener('mousedown', onRightStart);
-            btnRight.addEventListener('mouseup',   onRightEnd);
+            btnRight.addEventListener('mouseup', onRightEnd);
         }
     }
 
     function unbindListeners() {
         if (tpArea) {
             tpArea.removeEventListener('touchstart', onAreaTouchStart);
-            tpArea.removeEventListener('touchmove',  onAreaTouchMove);
-            tpArea.removeEventListener('touchend',   onAreaTouchEnd);
+            tpArea.removeEventListener('touchmove', onAreaTouchMove);
+            tpArea.removeEventListener('touchend', onAreaTouchEnd);
             tpArea.removeEventListener('touchcancel', onAreaTouchEnd);
             tpArea.removeEventListener('mousedown', onMouseDown);
             window.removeEventListener('mousemove', onMouseMove);
-            window.removeEventListener('mouseup',   onMouseUp);
+            window.removeEventListener('mouseup', onMouseUp);
         }
         if (btnLeft) {
             btnLeft.removeEventListener('touchstart', onLeftStart);
-            btnLeft.removeEventListener('touchend',   onLeftEnd);
+            btnLeft.removeEventListener('touchend', onLeftEnd);
             btnLeft.removeEventListener('touchcancel', onLeftEnd);
             btnLeft.removeEventListener('mousedown', onLeftStart);
-            btnLeft.removeEventListener('mouseup',   onLeftEnd);
+            btnLeft.removeEventListener('mouseup', onLeftEnd);
             btnLeft.classList.remove('active');
         }
         if (btnRight) {
             btnRight.removeEventListener('touchstart', onRightStart);
-            btnRight.removeEventListener('touchend',   onRightEnd);
+            btnRight.removeEventListener('touchend', onRightEnd);
             btnRight.removeEventListener('touchcancel', onRightEnd);
             btnRight.removeEventListener('mousedown', onRightStart);
-            btnRight.removeEventListener('mouseup',   onRightEnd);
+            btnRight.removeEventListener('mouseup', onRightEnd);
             btnRight.classList.remove('active');
         }
     }
 
     // ==============================
-    // TOGGLE
+    // TOGGLE TOUCHPAD ON / OFF
     // ==============================
     function enable() {
         if (isConnecting || isEnabled || !socket) return;
@@ -367,10 +478,16 @@
             if (toggleBtn) toggleBtn.classList.add('active');
             if (toggleIcon) toggleIcon.src = 'images/icons/touchpad-disable.svg';
 
-            // Reset state
-            clicks = 0; touches = 0; drag = 0;
-            isTouchMove = false; totalMoveDist = 0;
-            mouseDown = false; mouseMoved = false;
+            clicks = 0;
+            maxTouches = 0;
+            hasMoved = false;
+            isTapDragging = false;
+            isThreeFingerDragging = false;
+            mouseDown = false;
+            mouseMoved = false;
+            accumX = 0;
+            accumY = 0;
+            scrollAccumY = 0;
 
             bindListeners();
         });
@@ -383,10 +500,10 @@
         haptic(50);
         unbindListeners();
 
-        // Release any held drag
-        if (drag === 1) {
+        if (isTapDragging || isThreeFingerDragging) {
             emitTP(1, 0x110, 0);
-            drag = 0;
+            isTapDragging = false;
+            isThreeFingerDragging = false;
         }
 
         if (overlay) overlay.classList.add('hidden');
@@ -403,7 +520,7 @@
     }
 
     // ==============================
-    // SETTINGS UI
+    // SETTINGS MODAL INTEGRATION
     // ==============================
     function syncSettingsUI() {
         loadSettings();
@@ -448,13 +565,12 @@
             });
         }
 
-        // Reload values whenever settings modal opens
         var settingsBtn = document.getElementById('btn-settings');
         if (settingsBtn) settingsBtn.addEventListener('click', syncSettingsUI);
     }
 
     // ==============================
-    // INIT
+    // INITIALIZATION
     // ==============================
     function init() {
         loadSettings();
@@ -475,7 +591,6 @@
             });
         }
 
-        // Prevent context menu on the overlay
         if (overlay) {
             overlay.addEventListener('contextmenu', function (e) {
                 e.preventDefault();
@@ -486,7 +601,6 @@
         initSettingsListeners();
         syncSettingsUI();
 
-        // Socket discovery
         function onSocket(s) {
             socket = s;
             if (toggleBtn) {
@@ -502,7 +616,6 @@
                 if (e && e.detail) onSocket(e.detail);
                 else if (window._kbSocket) onSocket(window._kbSocket);
             });
-            // Polling fallback
             var n = 0;
             var poll = setInterval(function () {
                 if (window._kbSocket) { onSocket(window._kbSocket); clearInterval(poll); }
