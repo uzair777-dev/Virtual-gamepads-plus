@@ -271,13 +271,28 @@ var app = {
         function leftCode() { return settings.leftHandMode ? 0x111 : 0x110; }
         function rightCode() { return settings.leftHandMode ? 0x110 : 0x111; }
 
+        function emitTP(type, code, value) {
+            app.emit("touchpadEvent", type, code, value);
+        }
+
+        function emitClick(code) {
+            emitTP(1 /* EV_KEY */, code, 1);
+            setTimeout(function () {
+                emitTP(1 /* EV_KEY */, code, 0);
+            }, 45);
+        }
+
         function emitKB(code, value) {
-            app.emit("keyboardEvent", {
-                type: 0x01,
-                code: code,
-                value: value,
-                hardware: false
-            });
+            if (app.socket) {
+                var ev = {
+                    type: 0x01,
+                    code: code,
+                    value: value,
+                    hardware: false
+                };
+                app.socket.emit("boardEvent", ev);
+                app.socket.emit("keyboardEvent", ev);
+            }
         }
 
         function emitKeyCombo(keys) {
@@ -333,30 +348,54 @@ var app = {
         var scrollAccumX = 0;
         var zoomAccum = 0;
 
+        var isChordingMiddle = false;
+
         options.btn_left && options.btn_left.addEventListener('touchstart', function (e) {
             if (e && e.cancelable) e.preventDefault();
-            if (!isTapDragging && !isThreeFingerDragging) {
-                app.emit("touchpadEvent", 1 /*'EV_KEY'*/, leftCode(), 1);
-            }
             app.clicks |= 1;
+            if ((app.clicks & 3) === 3) {
+                isChordingMiddle = true;
+                emitTP(1 /*'EV_KEY'*/, leftCode(), 0);
+                emitTP(1 /*'EV_KEY'*/, rightCode(), 0);
+                emitTP(1 /*'EV_KEY'*/, 0x112 /*'BTN_MIDDLE'*/, 1);
+            } else if (!isTapDragging && !isThreeFingerDragging) {
+                emitTP(1 /*'EV_KEY'*/, leftCode(), 1);
+            }
         });
         options.btn_left && options.btn_left.addEventListener('touchend', function (e) {
             if (e && e.cancelable) e.preventDefault();
-            if (!isTapDragging && !isThreeFingerDragging) {
-                app.emit("touchpadEvent", 1 /*'EV_KEY'*/, leftCode(), 0);
-            }
             app.clicks &= ~1;
+            if (isChordingMiddle) {
+                emitTP(1 /*'EV_KEY'*/, 0x112 /*'BTN_MIDDLE'*/, 0);
+                isChordingMiddle = false;
+                if (app.clicks & 2) emitTP(1 /*'EV_KEY'*/, rightCode(), 1);
+            } else if (!isTapDragging && !isThreeFingerDragging) {
+                emitTP(1 /*'EV_KEY'*/, leftCode(), 0);
+            }
         });
 
         options.btn_right && options.btn_right.addEventListener('touchstart', function (e) {
             if (e && e.cancelable) e.preventDefault();
-            app.emit("touchpadEvent", 1 /*'EV_KEY'*/, rightCode(), 1);
             app.clicks |= 2;
+            if ((app.clicks & 3) === 3) {
+                isChordingMiddle = true;
+                emitTP(1 /*'EV_KEY'*/, leftCode(), 0);
+                emitTP(1 /*'EV_KEY'*/, rightCode(), 0);
+                emitTP(1 /*'EV_KEY'*/, 0x112 /*'BTN_MIDDLE'*/, 1);
+            } else {
+                emitTP(1 /*'EV_KEY'*/, rightCode(), 1);
+            }
         });
         options.btn_right && options.btn_right.addEventListener('touchend', function (e) {
             if (e && e.cancelable) e.preventDefault();
-            app.emit("touchpadEvent", 1 /*'EV_KEY'*/, rightCode(), 0);
             app.clicks &= ~2;
+            if (isChordingMiddle) {
+                emitTP(1 /*'EV_KEY'*/, 0x112 /*'BTN_MIDDLE'*/, 0);
+                isChordingMiddle = false;
+                if (app.clicks & 1) emitTP(1 /*'EV_KEY'*/, leftCode(), 1);
+            } else {
+                emitTP(1 /*'EV_KEY'*/, rightCode(), 0);
+            }
         });
 
         options.area && options.area.addEventListener('touchstart', function (e) {
@@ -666,10 +705,8 @@ var app = {
                     threeFingerStartTime = 0;
 
                 } else if (threeFingerStartTime > 0 && !threeFingerMoved && (now - threeFingerStartTime < 320)) {
-                    app.emit(
-                        ["touchpadEvent", 1 /*'EV_KEY'*/, 0x112 /*'BTN_MIDDLE'*/, 1],
-                        ["touchpadEvent", 1 /*'EV_KEY'*/, 0x112 /*'BTN_MIDDLE'*/, 0]
-                    );
+                    // ── 3-Finger Tap -> Middle Click ──
+                    emitClick(0x112 /* BTN_MIDDLE */);
                     threeFingerStartTime = 0;
                     lastTapTime = 0;
 
@@ -690,26 +727,20 @@ var app = {
                 } else if (twoFingerStartTime > 0 && !twoFingerMoved && (now - twoFingerStartTime < 320)) {
                     var timeSinceLast2Tap = now - lastTwoFingerTapTime;
                     if (timeSinceLast2Tap < 300) {
-                        app.emit(
-                            ["touchpadEvent", 1 /*'EV_KEY'*/, 0x112 /*'BTN_MIDDLE'*/, 1],
-                            ["touchpadEvent", 1 /*'EV_KEY'*/, 0x112 /*'BTN_MIDDLE'*/, 0]
-                        );
+                        // 2-Finger Double-Tap -> Middle Click
+                        emitClick(0x112 /* BTN_MIDDLE */);
                         lastTwoFingerTapTime = 0;
                     } else {
-                        app.emit(
-                            ["touchpadEvent", 1 /*'EV_KEY'*/, 0x111 /*'BTN_RIGHT'*/, 1],
-                            ["touchpadEvent", 1 /*'EV_KEY'*/, 0x111 /*'BTN_RIGHT'*/, 0]
-                        );
+                        // 2-Finger Tap -> Right Click
+                        emitClick(0x111 /* BTN_RIGHT */);
                         lastTwoFingerTapTime = now;
                     }
                     twoFingerStartTime = 0;
                     lastTapTime = 0;
 
                 } else if (oneFingerStartTime > 0 && !oneFingerMoved && (now - oneFingerStartTime < 320) && app.clicks === 0) {
-                    app.emit(
-                        ["touchpadEvent", 1 /*'EV_KEY'*/, 0x110 /*'BTN_LEFT'*/, 1],
-                        ["touchpadEvent", 1 /*'EV_KEY'*/, 0x110 /*'BTN_LEFT'*/, 0]
-                    );
+                    // ── 1-Finger Tap -> Left Click ──
+                    emitClick(0x110 /* BTN_LEFT */);
                     lastTapTime = now;
                     lastTapX = oneFingerStartX;
                     lastTapY = oneFingerStartY;

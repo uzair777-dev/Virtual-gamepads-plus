@@ -182,6 +182,14 @@
         socket.emit('touchpadEvent', payload);
     }
 
+    function emitClick(code, hapticMs) {
+        haptic(hapticMs || 35);
+        emitTP(1 /* EV_KEY */, code, 1);
+        setTimeout(function () {
+            emitTP(1 /* EV_KEY */, code, 0);
+        }, 45);
+    }
+
     function emitKB(code, value) {
         if (!socket) return;
         var ev = {
@@ -216,41 +224,67 @@
         return tpSettings.leftHandMode ? 0x110 /* BTN_LEFT */ : 0x111 /* BTN_RIGHT */;
     }
 
+    var isChordingMiddle = false;
+
     // ==============================
-    // DEDICATED BOTTOM BUTTONS
+    // DEDICATED BOTTOM BUTTONS (with Left+Right Middle Click Chording)
     // ==============================
     function onLeftStart(e) {
         if (e && e.cancelable) e.preventDefault();
         haptic(30);
+        clicks |= 1;
         if (btnLeft) btnLeft.classList.add('active');
-        if (!isTapDragging && !isThreeFingerDragging) {
+        if ((clicks & 3) === 3) {
+            isChordingMiddle = true;
+            emitTP(1 /* EV_KEY */, leftBtnCode(), 0);
+            emitTP(1 /* EV_KEY */, rightBtnCode(), 0);
+            emitTP(1 /* EV_KEY */, 0x112 /* BTN_MIDDLE */, 1);
+            haptic(45);
+        } else if (!isTapDragging && !isThreeFingerDragging) {
             emitTP(1 /* EV_KEY */, leftBtnCode(), 1);
         }
-        clicks |= 1;
     }
 
     function onLeftEnd(e) {
         if (e && e.cancelable) e.preventDefault();
+        clicks &= ~1;
         if (btnLeft) btnLeft.classList.remove('active');
-        if (!isTapDragging && !isThreeFingerDragging) {
+        if (isChordingMiddle) {
+            emitTP(1 /* EV_KEY */, 0x112 /* BTN_MIDDLE */, 0);
+            isChordingMiddle = false;
+            if (clicks & 2) emitTP(1 /* EV_KEY */, rightBtnCode(), 1);
+        } else if (!isTapDragging && !isThreeFingerDragging) {
             emitTP(1 /* EV_KEY */, leftBtnCode(), 0);
         }
-        clicks &= ~1;
     }
 
     function onRightStart(e) {
         if (e && e.cancelable) e.preventDefault();
         haptic(30);
-        if (btnRight) btnRight.classList.add('active');
-        emitTP(1 /* EV_KEY */, rightBtnCode(), 1);
         clicks |= 2;
+        if (btnRight) btnRight.classList.add('active');
+        if ((clicks & 3) === 3) {
+            isChordingMiddle = true;
+            emitTP(1 /* EV_KEY */, leftBtnCode(), 0);
+            emitTP(1 /* EV_KEY */, rightBtnCode(), 0);
+            emitTP(1 /* EV_KEY */, 0x112 /* BTN_MIDDLE */, 1);
+            haptic(45);
+        } else {
+            emitTP(1 /* EV_KEY */, rightBtnCode(), 1);
+        }
     }
 
     function onRightEnd(e) {
         if (e && e.cancelable) e.preventDefault();
-        if (btnRight) btnRight.classList.remove('active');
-        emitTP(1 /* EV_KEY */, rightBtnCode(), 0);
         clicks &= ~2;
+        if (btnRight) btnRight.classList.remove('active');
+        if (isChordingMiddle) {
+            emitTP(1 /* EV_KEY */, 0x112 /* BTN_MIDDLE */, 0);
+            isChordingMiddle = false;
+            if (clicks & 1) emitTP(1 /* EV_KEY */, leftBtnCode(), 1);
+        } else {
+            emitTP(1 /* EV_KEY */, rightBtnCode(), 0);
+        }
     }
 
     // ==============================
@@ -585,9 +619,7 @@
 
             } else if (threeFingerStartTime > 0 && !threeFingerMoved && (now - threeFingerStartTime < 320)) {
                 // ── 3-Finger Tap -> Middle Click ──
-                haptic(45);
-                emitTP(1, 0x112, 1);
-                emitTP(1, 0x112, 0);
+                emitClick(0x112 /* BTN_MIDDLE */, 45);
                 threeFingerStartTime = 0;
                 lastTapTime = 0;
 
@@ -615,15 +647,11 @@
                 var timeSinceLast2Tap = now - lastTwoFingerTapTime;
                 if (timeSinceLast2Tap < 300) {
                     // 2-Finger Double-Tap -> Middle Click
-                    haptic(45);
-                    emitTP(1, 0x112, 1);
-                    emitTP(1, 0x112, 0);
+                    emitClick(0x112 /* BTN_MIDDLE */, 45);
                     lastTwoFingerTapTime = 0;
                 } else {
                     // 2-Finger Tap -> Right Click
-                    haptic(35);
-                    emitTP(1, 0x111, 1);
-                    emitTP(1, 0x111, 0);
+                    emitClick(0x111 /* BTN_RIGHT */, 35);
                     lastTwoFingerTapTime = now;
                 }
                 twoFingerStartTime = 0;
@@ -631,9 +659,7 @@
 
             } else if (oneFingerStartTime > 0 && !oneFingerMoved && (now - oneFingerStartTime < 320) && clicks === 0) {
                 // ── 1-Finger Tap -> Left Click ──
-                haptic(25);
-                emitTP(1, 0x110, 1);
-                emitTP(1, 0x110, 0);
+                emitClick(0x110 /* BTN_LEFT */, 25);
                 lastTapTime = now;
                 lastTapX = oneFingerStartX;
                 lastTapY = oneFingerStartY;
