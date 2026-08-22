@@ -110,23 +110,38 @@ if [ $FETCH_OK -eq 0 ]; then
     exit 2
 fi
 
-# 7. Read remote VERSION file from origin/main
-REMOTE_VERSION=$(git show origin/main:VERSION 2>/dev/null | tr -d '[:space:]' || echo "")
+# 7. Locate the latest commit on origin/main that modified the VERSION file
+TARGET_COMMIT=$(git log -n 1 --format="%H" FETCH_HEAD -- VERSION 2>/dev/null || git log -n 1 --format="%H" origin/main -- VERSION 2>/dev/null || echo "")
+
+if [ -z "$TARGET_COMMIT" ]; then
+    output_msg "Notice: Could not find any commit modifying VERSION in remote repository (origin/main)."
+    output_json '{"status": "error_resolving_target_commit"}'
+    exit 1
+fi
+
+# Read remote VERSION at that specific commit
+REMOTE_VERSION=$(git show "$TARGET_COMMIT:VERSION" 2>/dev/null | tr -d '[:space:]' || echo "")
 
 if [ -z "$REMOTE_VERSION" ]; then
-    output_msg "Notice: Could not find VERSION file in remote repository (origin/main)."
+    output_msg "Notice: Could not read VERSION at target commit ${TARGET_COMMIT:0:8}."
     output_json '{"status": "error_reading_remote_version"}'
     exit 1
 fi
 
+# Count any unreleased/in-progress commits on origin/main that occurred after the VERSION bump commit
+COMMITS_AHEAD=$(git rev-list --count "$TARGET_COMMIT..FETCH_HEAD" 2>/dev/null || git rev-list --count "$TARGET_COMMIT..origin/main" 2>/dev/null || echo "0")
+
 # 8. Perform SemVer comparison: only trigger if remote_version > local_version
 if version_gt "$REMOTE_VERSION" "$LOCAL_VERSION"; then
-    output_msg "Update Available: v$LOCAL_VERSION -> v$REMOTE_VERSION"
-    output_json '{"status": "update_available", "current_version": "'"$LOCAL_VERSION"'", "latest_version": "'"$REMOTE_VERSION"'"}'
+    output_msg "Update Available: v$LOCAL_VERSION -> v$REMOTE_VERSION (release commit ${TARGET_COMMIT:0:8})"
+    if [ "$COMMITS_AHEAD" -gt 0 ]; then
+        output_msg "Notice: Skipping $COMMITS_AHEAD unreleased/in-progress commit(s) ahead of v$REMOTE_VERSION on origin/main."
+    fi
+    output_json '{"status": "update_available", "current_version": "'"$LOCAL_VERSION"'", "latest_version": "'"$REMOTE_VERSION"'", "target_commit": "'"$TARGET_COMMIT"'", "unreleased_commits_skipped": '"$COMMITS_AHEAD"'}'
     exit 0
 else
     # Local version is equal to or newer than remote (e.g. local dev build)
-    output_msg "Application is up to date (v$LOCAL_VERSION, remote is v$REMOTE_VERSION)."
-    output_json '{"status": "up_to_date", "current_version": "'"$LOCAL_VERSION"'", "latest_version": "'"$REMOTE_VERSION"'"}'
+    output_msg "Application is up to date (v$LOCAL_VERSION, latest release is v$REMOTE_VERSION at commit ${TARGET_COMMIT:0:8})."
+    output_json '{"status": "up_to_date", "current_version": "'"$LOCAL_VERSION"'", "latest_version": "'"$REMOTE_VERSION"'", "target_commit": "'"$TARGET_COMMIT"'", "unreleased_commits_skipped": '"$COMMITS_AHEAD"'}'
     exit 1
 fi

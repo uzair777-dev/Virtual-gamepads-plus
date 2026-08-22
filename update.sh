@@ -79,8 +79,8 @@ if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
     DID_STASH=1
 fi
 
-# 4. Fetch and pull latest changes from origin/main
-echo -e "${BLUE}==>${RESET} ${BOLD}Pulling latest updates from origin/main...${RESET}"
+# 4. Fetch and update to the latest release commit modifying VERSION
+echo -e "${BLUE}==>${RESET} ${BOLD}Fetching latest updates from origin/main...${RESET}"
 if ! git fetch origin main; then
     echo -e "${RED}Error: Failed to fetch updates from remote repository.${RESET}"
     if [ $DID_STASH -eq 1 ]; then
@@ -89,9 +89,27 @@ if ! git fetch origin main; then
     exit 1
 fi
 
-if ! git pull origin main; then
-    echo -e "${YELLOW}Warning: Direct pull had conflicts or issues. Attempting clean fast-forward...${RESET}"
-    git merge --ff-only origin/main || git reset --hard origin/main
+TARGET_COMMIT=$(git log -n 1 --format="%H" FETCH_HEAD -- VERSION 2>/dev/null || git log -n 1 --format="%H" origin/main -- VERSION 2>/dev/null || echo "")
+if [ -z "$TARGET_COMMIT" ]; then
+    echo -e "${RED}Error: Could not find any commit modifying VERSION on origin/main.${RESET}"
+    if [ $DID_STASH -eq 1 ]; then
+        git stash pop 2>/dev/null || true
+    fi
+    exit 1
+fi
+
+TARGET_VERSION=$(git show "$TARGET_COMMIT:VERSION" 2>/dev/null | tr -d '[:space:]' || echo "unknown")
+COMMITS_AHEAD=$(git rev-list --count "$TARGET_COMMIT..FETCH_HEAD" 2>/dev/null || git rev-list --count "$TARGET_COMMIT..origin/main" 2>/dev/null || echo "0")
+
+echo -e "${BLUE}==>${RESET} ${BOLD}Target release commit:${RESET} ${CYAN}${TARGET_COMMIT:0:8}${RESET} (v$TARGET_VERSION)"
+if [ "$COMMITS_AHEAD" -gt 0 ]; then
+    echo -e "${YELLOW}Notice: Found $COMMITS_AHEAD newer in-progress commit(s) on origin/main without a VERSION bump.${RESET}"
+    echo -e "${CYAN}Updating strictly to verified release commit ${BOLD}${TARGET_COMMIT:0:8}${RESET} (v$TARGET_VERSION)..."
+fi
+
+if ! git merge --ff-only "$TARGET_COMMIT" 2>/dev/null; then
+    echo -e "${YELLOW}Notice: Fast-forward merge not applicable. Resetting cleanly to release commit ${TARGET_COMMIT:0:8}...${RESET}"
+    git reset --hard "$TARGET_COMMIT"
 fi
 
 # 5. Restore stashed local modifications if any
@@ -108,12 +126,13 @@ if [ $DID_STASH -eq 1 ]; then
                     cp -a "$cfile" "$BACKUP_DIR/" 2>/dev/null || true
                 fi
             done
-            git reset --hard origin/main 2>/dev/null || true
-            echo -e "${YELLOW}Notice: Local edits conflicted with upstream updates.${RESET}"
+            git reset --hard "$TARGET_COMMIT" 2>/dev/null || true
+            git stash drop 2>/dev/null || true
+            echo -e "${YELLOW}Notice: Local edits conflicted with remote origin updates.${RESET}"
             echo -e "Your modified files were backed up to: ${BOLD}$BACKUP_DIR${RESET}"
-            echo -e "Workspace has been safely reset to clean upstream."
+            echo -e "Workspace has been safely reset to clean release commit ${TARGET_COMMIT:0:8}."
         else
-            git reset --hard origin/main 2>/dev/null || true
+            git reset --hard "$TARGET_COMMIT" 2>/dev/null || true
         fi
     fi
 fi
