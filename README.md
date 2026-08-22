@@ -6,12 +6,14 @@ This repo is a fork of [alr86/node-virtual-gamepads-revived](https://github.com/
 
 - Shows QR-Code to join 
 - ~~Gyro support~~ [Partial, will be impelmented(Thats a big maybe)]
-- Dark Mode
+- Dark Mode (and AMOLED mode for battery life)
 - An Script to test gamepads [still pending]
 - Better styles(I'm a developer, not a designer, yeah?)
 - ~~Also have "L2", "R2" & "Menu" buttons~~ [Don't know what they did on the other controller]
 - XBOX-Style buttons layout with xinput support
 - Steering wheel support with genuine steering wheel input
+- Keyboard + Touchpad combo overlay (type and mouse around without switching tabs)
+- Completely revamped touchpad gesture engine (1/2/3/4 finger gestures, pinch-to-zoom, middle-click autoscroll, button chording)
 - ~~PreDefiend `.desktop` files to run script(needs change)~~ 
   
 **Please note that what the other developer did with other things and stuff, are preserved as it is, as it doesnt conflict with new stuff. I thought It should be there as so that the Mantra of "If it works, dont f\*\*king touch it"**
@@ -90,7 +92,7 @@ vgp
 | :---: | :---: | :---: |
 | ![Xbox Dark](public/images/screenshots/xbox_dark.jpg) | ![Xbox Light](public/images/screenshots/xbox_light.jpg) | ![Xbox AMOLED](public/images/screenshots/xbox_black.jpg) |
 
-#### Touchpad & Keyboard(By older devs(untouched), but still works good!)
+#### Touchpad & Keyboard (Now overhauled with overlay & full gesture support!)
 | Touchpad (Dark) | Touchpad (Light) | Virtual Keyboard |
 | :---: | :---: | :---: |
 | ![Touchpad Dark](public/images/screenshots/touchpad_dark.jpg) | ![Touchpad Light](public/images/screenshots/touchpad_light.jpg) | ![Keyboard](public/images/screenshots/keyboard_light.jpg) |
@@ -146,11 +148,29 @@ to let as much space as possible for the joystick and avoid touch mistakes.
 To know if we pressed a button with success, the web application provides an haptic feedback
 which can be easily deactivated by turning off the vibrations of the phone.
 
-### Use the keyboard to enter text
+### Keyboard + Floating Touchpad Overlay
 ![Virtual Keyboard](https://github.com/uzair777-dev/Virtual-gamepads-plus/blob/main/public/images/screenshots/keyboard_light.jpg?raw=true)
 
-### Use the touchpad for mouse inputs
+Got tired of jumping between the keyboard page and the touchpad page just to click a search box or move the cursor while typing. So now the keyboard has a floating touchpad overlay right on top of it. Click the touchpad icon on the top bar to pop up the touchpad right over your keys, mouse around and click, and click it again to go straight back to typing.
+
+### Fully Revamped Touchpad & Gestures Engine
 ![Virtual Touchpad](https://github.com/uzair777-dev/Virtual-gamepads-plus/blob/main/public/images/screenshots/touchpad_light.jpg?raw=true)
+
+The original touchpad gestures were pretty barebones and janky, so the whole gesture engine got rewritten from the ground up (both on the dedicated touchpad and the keyboard overlay):
+- **1-Finger**: Smooth movement with power-law acceleration, tap to left click, double tap & hold to drag.
+- **2-Finger**: Tap for right click, double tap for middle click, smooth 2D scrolling (with axis lock so your page doesn't wobble sideways while scrolling vertically), pinch-to-zoom (Ctrl + Wheel), and fast swipe left/right for browser Back/Forward.
+- **3-Finger**: Tap for middle click (handy for opening/closing browser tabs or pasting on Linux), 3-finger drag & drop, and fast swipes (Swipe Up for Overview/Super, Down for Show Desktop / Super+D, Left/Right for switching Workspaces).
+- **4-Finger**: Tap for side click.
+- **Button Chording**: Pressing both Left and Right bottom buttons at the same time gives you Middle Click & Hold (super useful for 3D orbiting in Blender/CAD or middle-button drag scrolling).
+- **Zero Cursor Jumps**: Re-anchors touches when lifting or adding fingers so your cursor doesn't teleport across your screen.
+
+### Touchpad Settings & Customization
+Click the gear icon on the touchpad or keyboard to customize everything:
+- Cursor speed & acceleration curve sliders
+- Natural scrolling toggle (makes scrolling follow your finger direction)
+- Left-hand mode (swaps left and right mouse buttons both visually and in code)
+- Toggles for pinch-to-zoom, horizontal scrolling, and 3-finger window management swipes
+- Everything saves to localStorage automatically so you don't have to reconfigure on every reload.
 
 ### An index page lets you choose
 ![Index page](https://github.com/uzair777-dev/Virtual-gamepads-plus/blob/main/public/images/screenshots/menu_webpage.jpg?raw=true)
@@ -251,7 +271,7 @@ If you want do add a new keyboard layout please refer to [this file](CREATE_KEYB
 
 10) Advanced features:
     - [ ] Gyro-to-mouse mode(Steam controller type (?) idk)
-    - [ ] Touchpad mode improvements
+    - [x] Touchpad mode improvements (Full multi-touch gesture suite, overlay mode, button chording, & settings)
     - [ ] Keyboard layouts per profile
     
 11) Documentation:
