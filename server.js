@@ -621,14 +621,21 @@ if (config.analog) {
     });
 
     // Manage Keyboard events (with backward compat)
-    socket.on('boardEvent', function(data) {
+    function handleBoardEvent(data) {
       log('debug', 'boardEvent ' + JSON.stringify(data));
       if (!data) return;
       var targetBoardId = (data.boardId !== undefined) ? data.boardId : socket.keyBoardIds[0];
       if (targetBoardId !== undefined && socket.keyBoardIds.indexOf(targetBoardId) !== -1) {
         return kb_hub.sendEvent(targetBoardId, data);
+      } else if (kb_hub && kb_hub.keyboards) {
+        var activeIds = Object.keys(kb_hub.keyboards);
+        if (activeIds.length > 0) {
+          return kb_hub.sendEvent(parseInt(activeIds[0]), data);
+        }
       }
-    });
+    }
+    socket.on('boardEvent', handleBoardEvent);
+    socket.on('keyboardEvent', handleBoardEvent);
 
     // Manage Touchpad connection
     socket.on('connectTouchpad', function() {

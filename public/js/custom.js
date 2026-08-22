@@ -51,18 +51,47 @@ document.addEventListener("fullscreenchange", syncFullscreenUI);
 document.addEventListener("webkitfullscreenchange", syncFullscreenUI);
 document.addEventListener("msfullscreenchange", syncFullscreenUI);
 
+function applySavedDarkMode() {
+  try {
+    const isDark = localStorage.getItem("darkMode") === "true";
+    if (isDark) {
+      document.body.classList.add("dark");
+      const darkBtn = document.getElementById("btn-dark");
+      if (darkBtn) darkBtn.classList.add("active");
+      ["path3259", "path3237", "path3247", "path3253"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add("dark");
+      });
+      const darkBtnIcon = document.getElementById("btn-dark-icon");
+      if (darkBtnIcon) darkBtnIcon.src = "images/icons/sun.svg";
+    }
+  } catch (e) {}
+}
+
 function toggleDark() {
   const darkBtn = document.getElementById("btn-dark");
   document.body.classList.toggle("dark");
-  darkBtn.classList.toggle("active");
+  if (darkBtn) darkBtn.classList.toggle("active");
   ["path3259", "path3237", "path3247", "path3253"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle("dark");
   });
+  const isDark = document.body.classList.contains("dark");
+  try {
+    localStorage.setItem("darkMode", isDark ? "true" : "false");
+  } catch (e) {}
   const darkBtnIcon = document.getElementById("btn-dark-icon");
-  if (document.body.classList.contains("dark")) {
-    darkBtnIcon.src = "images/icons/sun.svg";
-  } else {
-    darkBtnIcon.src = "images/icons/moon.svg";
+  if (darkBtnIcon) {
+    if (isDark) {
+      darkBtnIcon.src = "images/icons/sun.svg";
+    } else {
+      darkBtnIcon.src = "images/icons/moon.svg";
+    }
   }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", applySavedDarkMode);
+} else {
+  applySavedDarkMode();
 }

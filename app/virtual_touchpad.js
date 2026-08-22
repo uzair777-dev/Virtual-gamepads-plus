@@ -111,12 +111,18 @@ Virtual gamepad class
     };
 
     virtual_touchpad.prototype.sendEvent = function(event) {
-      var err, error1, error2, ev, ev_buffer, ev_end, ev_end_buffer;
-      if (this.fd) {
+      var err, error1, error2, ev, ev_buffer, ev_end, ev_end_buffer, i;
+      if (this.fd && event) {
+        if (Array.isArray(event)) {
+          for (i = 0; i < event.length; i++) {
+            this.sendEvent(event[i]);
+          }
+          return;
+        }
         ev = new uinputStructs.input_event;
         ev.type = event.type;
         ev.code = event.code;
-        ev.value = event.value;
+        ev.value = Math.round(event.value) || 0;
         ev.time.tv_sec = Math.round(Date.now() / 1000);
         ev.time.tv_usec = Math.round(Date.now() % 1000 * 1000);
         ev_buffer = ev.ref();

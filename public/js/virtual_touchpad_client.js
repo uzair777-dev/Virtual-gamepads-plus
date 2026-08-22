@@ -291,6 +291,7 @@ var app = {
             }, 50);
         }
 
+        var lastTouchCount = 0;
         var isTapDragging = false;
         var isThreeFingerDragging = false;
         var lastTapTime = 0;
@@ -361,6 +362,7 @@ var app = {
         options.area && options.area.addEventListener('touchstart', function (e) {
             if (e.cancelable) e.preventDefault();
             var num = e.targetTouches.length;
+            lastTouchCount = num;
             var now = Date.now();
 
             if (num === 1) {
@@ -433,6 +435,37 @@ var app = {
             var num = e.targetTouches.length;
             var spd = settings.speed;
             var acc = settings.acceleration;
+
+            // ── Seamless Transition Anchor Check ──
+            if (num !== lastTouchCount) {
+                lastTouchCount = num;
+                if (num === 1) {
+                    var tr = e.targetTouches[0];
+                    prevOneX = tr.pageX;
+                    prevOneY = tr.pageY;
+                    accumX = 0;
+                    accumY = 0;
+                    if (isPinching) { emitKB(29, 0); isPinching = false; }
+                    return;
+                } else if (num === 2) {
+                    var t0 = e.targetTouches[0];
+                    var t1 = e.targetTouches[1];
+                    twoFingerSpan0 = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
+                    prevSpan = twoFingerSpan0;
+                    prevMidX = (t0.pageX + t1.pageX) / 2;
+                    prevMidY = (t0.pageY + t1.pageY) / 2;
+                    scrollAccumY = 0; scrollAccumX = 0; zoomAccum = 0;
+                    return;
+                } else if (num === 3) {
+                    var ta = e.targetTouches[0];
+                    var tb = e.targetTouches[1];
+                    var tc = e.targetTouches[2];
+                    prevCentroidX = (ta.pageX + tb.pageX + tc.pageX) / 3;
+                    prevCentroidY = (ta.pageY + tb.pageY + tc.pageY) / 3;
+                    accumX = 0; accumY = 0;
+                    return;
+                }
+            }
 
             if (num === 1) {
                 var t = e.targetTouches[0];
@@ -564,13 +597,39 @@ var app = {
 
         options.area && options.area.addEventListener('touchend', function (e) {
             if (e.cancelable) e.preventDefault();
+            var remaining = e.targetTouches.length;
+            lastTouchCount = remaining;
 
             if (isPinching) {
                 emitKB(29 /* KEY_LEFTCTRL */, 0);
                 isPinching = false;
             }
 
-            if (e.targetTouches.length === 0) {
+            if (remaining === 1) {
+                var tRem = e.targetTouches[0];
+                prevOneX = tRem.pageX;
+                prevOneY = tRem.pageY;
+                accumX = 0;
+                accumY = 0;
+                oneFingerMoved = true;
+
+            } else if (remaining === 2) {
+                var t0 = e.targetTouches[0];
+                var t1 = e.targetTouches[1];
+                twoFingerSpan0 = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
+                prevSpan = twoFingerSpan0;
+                prevMidX = (t0.pageX + t1.pageX) / 2;
+                prevMidY = (t0.pageY + t1.pageY) / 2;
+                scrollAccumY = 0;
+                scrollAccumX = 0;
+                zoomAccum = 0;
+                twoFingerMoved = true;
+                if (isThreeFingerDragging) {
+                    app.emit("touchpadEvent", 1 /*'EV_KEY'*/, 0x110 /*'BTN_LEFT'*/, 0);
+                    isThreeFingerDragging = false;
+                }
+
+            } else if (remaining === 0) {
                 var now = Date.now();
 
                 if (isTapDragging) {

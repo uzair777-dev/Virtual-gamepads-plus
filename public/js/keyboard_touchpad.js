@@ -18,7 +18,7 @@
  *   - 3-Finger Swipe Left / Right: Switch Workspace (Ctrl + Alt + Left/Right)
  *
  * 👆 One-Finger Gestures:
- *   - 1-Finger Instant Subpixel Cursor Move: 0ms lag, zero deadzone
+ *   - 1-Finger Instant Subpixel Cursor Move: 0ms lag, zero deadzone, jump-free transitions
  *   - 1-Finger Tap-to-Drag: Double-tap and hold to drag
  *   - 1-Finger Tap: Left Click (BTN_LEFT)
  *   - Two-Handed Drag: Hold Left Button + move finger on touchpad
@@ -114,6 +114,9 @@
     // Physical button clicks
     var clicks = 0; // bitmask: 1 = left, 2 = right
 
+    // Dynamic Touch Transition Tracker
+    var lastTouchCount = 0;
+
     // 1-Finger state
     var oneFingerStartTime = 0;
     var oneFingerStartX = 0;
@@ -157,7 +160,7 @@
     var scrollAccumX = 0.0;
     var zoomAccum = 0.0;
 
-    // Desktop fallback
+    // Desktop mouse fallback
     var mouseDown = false;
     var mouseMoved = false;
 
@@ -173,7 +176,7 @@
         var payload = {
             type: evType,
             code: code,
-            value: value
+            value: Math.round(value) || 0
         };
         if (touchpadId != null) payload.touchpadId = touchpadId;
         socket.emit('touchpadEvent', payload);
@@ -181,12 +184,14 @@
 
     function emitKB(code, value) {
         if (!socket) return;
-        socket.emit('keyboardEvent', {
+        var ev = {
             type: 0x01,
             code: code,
             value: value,
             hardware: false
-        });
+        };
+        socket.emit('boardEvent', ev);
+        socket.emit('keyboardEvent', ev);
     }
 
     function emitKeyCombo(keys) {
@@ -254,6 +259,7 @@
     function onAreaTouchStart(e) {
         if (e.cancelable) e.preventDefault();
         var num = e.targetTouches.length;
+        lastTouchCount = num;
         var now = Date.now();
 
         if (num === 1) {
@@ -329,6 +335,37 @@
         var num = e.targetTouches.length;
         var spd = tpSettings.speed;
         var acc = tpSettings.acceleration;
+
+        // ── Seamless Transition Anchor Check ──
+        if (num !== lastTouchCount) {
+            lastTouchCount = num;
+            if (num === 1) {
+                var tr = e.targetTouches[0];
+                prevOneX = tr.pageX;
+                prevOneY = tr.pageY;
+                accumX = 0;
+                accumY = 0;
+                if (isPinching) { emitKB(29, 0); isPinching = false; }
+                return;
+            } else if (num === 2) {
+                var t0 = e.targetTouches[0];
+                var t1 = e.targetTouches[1];
+                twoFingerSpan0 = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
+                prevSpan = twoFingerSpan0;
+                prevMidX = (t0.pageX + t1.pageX) / 2;
+                prevMidY = (t0.pageY + t1.pageY) / 2;
+                scrollAccumY = 0; scrollAccumX = 0; zoomAccum = 0;
+                return;
+            } else if (num === 3) {
+                var ta = e.targetTouches[0];
+                var tb = e.targetTouches[1];
+                var tc = e.targetTouches[2];
+                prevCentroidX = (ta.pageX + tb.pageX + tc.pageX) / 3;
+                prevCentroidY = (ta.pageY + tb.pageY + tc.pageY) / 3;
+                accumX = 0; accumY = 0;
+                return;
+            }
+        }
 
         if (num === 1) {
             // ── 1-Finger Instant Subpixel Cursor Movement ──
@@ -466,6 +503,8 @@
 
     function onAreaTouchEnd(e) {
         if (e.cancelable) e.preventDefault();
+        var remaining = e.targetTouches.length;
+        lastTouchCount = remaining;
 
         // Release Ctrl if pinch-to-zoom was active
         if (isPinching) {
@@ -473,8 +512,33 @@
             isPinching = false;
         }
 
-        // All fingers lifted
-        if (e.targetTouches.length === 0) {
+        if (remaining === 1) {
+            // Re-anchor remaining finger so continuing to drag won't cause cursor jumps
+            var tRem = e.targetTouches[0];
+            prevOneX = tRem.pageX;
+            prevOneY = tRem.pageY;
+            accumX = 0;
+            accumY = 0;
+            oneFingerMoved = true; // don't fire tap-click on final release
+
+        } else if (remaining === 2) {
+            var t0 = e.targetTouches[0];
+            var t1 = e.targetTouches[1];
+            twoFingerSpan0 = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
+            prevSpan = twoFingerSpan0;
+            prevMidX = (t0.pageX + t1.pageX) / 2;
+            prevMidY = (t0.pageY + t1.pageY) / 2;
+            scrollAccumY = 0;
+            scrollAccumX = 0;
+            zoomAccum = 0;
+            twoFingerMoved = true;
+            if (isThreeFingerDragging) {
+                emitTP(1, 0x110, 0);
+                isThreeFingerDragging = false;
+            }
+
+        } else if (remaining === 0) {
+            // All fingers lifted
             var now = Date.now();
 
             if (isTapDragging) {
@@ -713,6 +777,7 @@
             if (toggleIcon) toggleIcon.src = 'images/icons/touchpad-disable.svg';
 
             clicks = 0;
+            lastTouchCount = 0;
             oneFingerMoved = false;
             twoFingerMoved = false;
             threeFingerMoved = false;

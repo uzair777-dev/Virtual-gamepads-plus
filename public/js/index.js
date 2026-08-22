@@ -20,9 +20,16 @@ require(["common"], function(common) {
 
                 var target = $(this).attr('href');
 
-                $('body').bind("transitionend webkitTransitionEnd oTransitionEnd MSTransitionEnd", function(){
-                    window.location = target;
-                }).addClass('slide-left');
+                var navigated = false;
+                function navigate() {
+                    if (!navigated) {
+                        navigated = true;
+                        window.location = target;
+                    }
+                }
+
+                $('body').one("transitionend webkitTransitionEnd oTransitionEnd MSTransitionEnd", navigate).addClass('slide-left');
+                setTimeout(navigate, 300);
 
                 return false;
             });
