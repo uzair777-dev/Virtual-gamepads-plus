@@ -693,10 +693,31 @@ class VirtualGamepadsGUI(Gtk.Window):
     def update_status_label(self, state):
         if state is True or state == "online":
             self.status_label.set_markup("<span foreground='green' weight='bold'>Status: ● Online</span>")
+            self._update_tray_menu_state("online")
         elif state == "starting":
             self.status_label.set_markup("<span foreground='#2196F3' weight='bold'>Status: ● Starting...</span>")
+            self._update_tray_menu_state("starting")
         else:
             self.status_label.set_markup("<span foreground='red' weight='bold'>Status: ● Offline</span>")
+            self._update_tray_menu_state("offline")
+
+    def _update_tray_menu_state(self, state):
+        if hasattr(self, 'item_status_tray') and self.item_status_tray:
+            if state is True or state == "online":
+                port_info = f" (Port {self.current_port})" if hasattr(self, 'current_port') and self.current_port else ""
+                self.item_status_tray.set_label(f"Status: Online{port_info}")
+            elif state == "starting":
+                self.item_status_tray.set_label("Status: Starting...")
+            else:
+                self.item_status_tray.set_label("Status: Offline")
+
+        is_running_or_starting = (state is True or state == "online" or state == "starting" or self.server_process is not None)
+
+        if hasattr(self, 'item_start_tray') and self.item_start_tray:
+            self.item_start_tray.set_sensitive(not is_running_or_starting)
+
+        if hasattr(self, 'item_stop_tray') and self.item_stop_tray:
+            self.item_stop_tray.set_sensitive(bool(is_running_or_starting))
 
     def log(self, text):
         end_iter = self.log_buffer.get_end_iter()
@@ -762,9 +783,8 @@ class VirtualGamepadsGUI(Gtk.Window):
                     self.log(f"[AUTO-HEAL] Notice during port cleanup: {e}\n")
 
     def on_start_clicked(self, button):
-        if button is not None:
-            self.log_buffer.set_text("")
-            self.user_stopped = False
+        self.log_buffer.set_text("")
+        self.user_stopped = False
 
         # Prompt user to clean occupied ports if necessary
         self.check_and_prompt_occupied_ports()
@@ -837,8 +857,7 @@ class VirtualGamepadsGUI(Gtk.Window):
             
             self.update_status_label("starting")
             self.stop_btn.set_sensitive(True)
-            if hasattr(self, 'item_stop') and self.item_stop:
-                self.item_stop.set_sensitive(True)
+            self._update_tray_menu_state("starting")
             
         except Exception as e:
             self.log(f"Failed to start server process: {e}\n")
@@ -905,17 +924,37 @@ class VirtualGamepadsGUI(Gtk.Window):
     def on_style_updated(self, widget):
         # Dynamically reload gear and UI icons on system theme switch
         gear_icon_path = os.path.join(SCRIPT_DIR, 'public', 'images', 'icons', 'gear.svg')
+        is_dark = is_dark_theme(self)
         if os.path.exists(gear_icon_path) and hasattr(self, 'settings_btn'):
             try:
-                pixbuf = load_colored_svg_pixbuf(gear_icon_path, 18, 18, is_dark_theme(self))
+                pixbuf = load_colored_svg_pixbuf(gear_icon_path, 18, 18, is_dark)
                 gear_img = Gtk.Image.new_from_pixbuf(pixbuf)
                 self.settings_btn.set_image(gear_img)
+            except Exception:
+                pass
+
+        # Dynamically reload tray icon on theme change
+        gamepad_svg_path = os.path.join(SCRIPT_DIR, 'public', 'images', 'icons', 'gamepad-icon.svg')
+        if os.path.exists(gamepad_svg_path):
+            try:
+                tray_pixbuf = load_colored_svg_pixbuf(gamepad_svg_path, 24, 24, is_dark)
+                if tray_pixbuf:
+                    cache_dir = os.path.expanduser('~/.cache')
+                    os.makedirs(cache_dir, exist_ok=True)
+                    tray_icon_path = os.path.join(cache_dir, 'virtual-gamepads-tray.png')
+                    tray_pixbuf.savev(tray_icon_path, 'png', [], [])
+                    if hasattr(self, 'indicator') and self.indicator:
+                        self.indicator.set_icon_full(tray_icon_path, "virtual-gamepads-plus")
+                    elif hasattr(self, 'status_icon') and self.status_icon:
+                        self.status_icon.set_from_pixbuf(tray_pixbuf)
             except Exception:
                 pass
 
     def on_stop_clicked(self, button):
         self.user_stopped = True
         self.stop_btn.set_sensitive(False)
+        if hasattr(self, 'item_stop_tray') and self.item_stop_tray:
+            self.item_stop_tray.set_sensitive(False)
         self.stop_server()
 
     def stop_server(self, callback=None):
@@ -1062,6 +1101,27 @@ class VirtualGamepadsGUI(Gtk.Window):
     def setup_tray_icon(self):
         menu = Gtk.Menu()
         
+        self.item_status_tray = Gtk.MenuItem(label="Status: Offline")
+        self.item_status_tray.set_sensitive(False)
+        menu.append(self.item_status_tray)
+        
+        sep1 = Gtk.SeparatorMenuItem()
+        menu.append(sep1)
+
+        self.item_start_tray = Gtk.MenuItem(label="Start Server")
+        self.item_start_tray.connect("activate", self.on_tray_start)
+        self.item_start_tray.set_sensitive(True)
+        menu.append(self.item_start_tray)
+
+        self.item_stop_tray = Gtk.MenuItem(label="Stop Server")
+        self.item_stop_tray.connect("activate", self.on_tray_stop)
+        self.item_stop_tray.set_sensitive(False)
+        self.item_stop = self.item_stop_tray
+        menu.append(self.item_stop_tray)
+
+        sep2 = Gtk.SeparatorMenuItem()
+        menu.append(sep2)
+
         self.item_update_tray = Gtk.MenuItem(label="Update Available")
         self.item_update_tray.connect("activate", self.on_tray_show)
         self.item_update_tray.set_no_show_all(True)
@@ -1070,11 +1130,6 @@ class VirtualGamepadsGUI(Gtk.Window):
         item_show = Gtk.MenuItem(label="Show Window")
         item_show.connect("activate", self.on_tray_show)
         menu.append(item_show)
-        
-        self.item_stop = Gtk.MenuItem(label="Stop Server")
-        self.item_stop.connect("activate", self.on_tray_stop)
-        self.item_stop.set_sensitive(False)
-        menu.append(self.item_stop)
         
         item_quit = Gtk.MenuItem(label="Quit")
         item_quit.connect("activate", self.on_tray_quit)
@@ -1133,23 +1188,24 @@ class VirtualGamepadsGUI(Gtk.Window):
         self.present()
         self.update_tray_visibility(False)
 
+    def on_tray_start(self, item=None):
+        if not self.server_process:
+            self.on_start_clicked(None)
+
     def on_tray_stop(self, item=None):
-        self.stop_server()
+        if self.server_process:
+            self.on_stop_clicked(None)
 
     def on_tray_quit(self, item=None):
         self.cleanup_and_quit()
 
     def update_tray_visibility(self, visible):
         if self.indicator:
-            if visible:
-                self.indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
-            else:
-                self.indicator.set_status(AppIndicator.IndicatorStatus.PASSIVE)
+            self.indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
         elif self.status_icon:
-            self.status_icon.set_visible(visible)
+            self.status_icon.set_visible(visible or self.tray_toggle.get_active())
             
-        # Update stop menu item state
-        self.item_stop.set_sensitive(self.server_process is not None)
+        self._update_tray_menu_state("online" if self.server_process else "offline")
 
     def cleanup_and_quit(self):
         self.stop_server(callback=Gtk.main_quit)
