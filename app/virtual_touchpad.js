@@ -36,6 +36,10 @@ Virtual gamepad class
             ioctl(_this.fd, uinput.UI_SET_KEYBIT, uinput.BTN_LEFT);
             ioctl(_this.fd, uinput.UI_SET_KEYBIT, uinput.BTN_RIGHT);
             ioctl(_this.fd, uinput.UI_SET_KEYBIT, uinput.BTN_MIDDLE);
+            ioctl(_this.fd, uinput.UI_SET_KEYBIT, uinput.BTN_SIDE);
+            ioctl(_this.fd, uinput.UI_SET_KEYBIT, uinput.BTN_EXTRA);
+            ioctl(_this.fd, uinput.UI_SET_KEYBIT, uinput.BTN_FORWARD);
+            ioctl(_this.fd, uinput.UI_SET_KEYBIT, uinput.BTN_BACK);
             ioctl(_this.fd, uinput.UI_SET_KEYBIT, uinput.BTN_A);
             ioctl(_this.fd, uinput.UI_SET_KEYBIT, uinput.BTN_B);
             ioctl(_this.fd, uinput.UI_SET_KEYBIT, uinput.BTN_X);
@@ -51,6 +55,7 @@ Virtual gamepad class
             ioctl(_this.fd, uinput.UI_SET_RELBIT, uinput.REL_X);
             ioctl(_this.fd, uinput.UI_SET_RELBIT, uinput.REL_Y);
             ioctl(_this.fd, uinput.UI_SET_RELBIT, uinput.REL_WHEEL);
+            ioctl(_this.fd, uinput.UI_SET_RELBIT, uinput.REL_HWHEEL);
             uidev = new uinputStructs.uinput_user_dev;
             uidev_buffer = uidev.ref();
             uidev_buffer.fill(0);

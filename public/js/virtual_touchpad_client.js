@@ -40,6 +40,9 @@ var settings = function () {
             $('#settings-acceleration-output').val(settings.acceleration);
             $('#settings-natural-scroll').prop('checked', !!settings.naturalScrolling);
             $('#settings-left-hand').prop('checked', !!settings.leftHandMode);
+            $('#settings-pinch-zoom').prop('checked', settings.pinchToZoom !== false);
+            $('#settings-horizontal-scroll').prop('checked', settings.horizontalScroll !== false);
+            $('#settings-3finger-swipes').prop('checked', settings.threeFingerSwipes !== false);
         }
 
         function bindSubmit() {
@@ -88,18 +91,27 @@ var settings = function () {
     settings.acceleration = 1.5;
     settings.naturalScrolling = false;
     settings.leftHandMode = false;
+    settings.pinchToZoom = true;
+    settings.horizontalScroll = true;
+    settings.threeFingerSwipes = true;
 
     settings.update = function(update) {
         if (update.hasOwnProperty('speed')) settings.speed = parseFloat(update.speed);
         if (update.hasOwnProperty('acceleration')) settings.acceleration = parseFloat(update.acceleration);
         if (update.hasOwnProperty('naturalScrolling')) settings.naturalScrolling = !!update.naturalScrolling;
         if (update.hasOwnProperty('leftHandMode')) settings.leftHandMode = !!update.leftHandMode;
+        if (update.hasOwnProperty('pinchToZoom')) settings.pinchToZoom = !!update.pinchToZoom;
+        if (update.hasOwnProperty('horizontalScroll')) settings.horizontalScroll = !!update.horizontalScroll;
+        if (update.hasOwnProperty('threeFingerSwipes')) settings.threeFingerSwipes = !!update.threeFingerSwipes;
         if (localStorageAvailable) {
             window.localStorage.setItem('touchpadSettings', JSON.stringify({
                 speed: settings.speed,
                 acceleration: settings.acceleration,
                 naturalScrolling: settings.naturalScrolling,
-                leftHandMode: settings.leftHandMode
+                leftHandMode: settings.leftHandMode,
+                pinchToZoom: settings.pinchToZoom,
+                horizontalScroll: settings.horizontalScroll,
+                threeFingerSwipes: settings.threeFingerSwipes
             }));
         }
     };
@@ -109,7 +121,10 @@ var settings = function () {
             speed: 2,
             acceleration: 1.5,
             naturalScrolling: false,
-            leftHandMode: false
+            leftHandMode: false,
+            pinchToZoom: true,
+            horizontalScroll: true,
+            threeFingerSwipes: true
         }
     }
 
@@ -256,21 +271,66 @@ var app = {
         function leftCode() { return settings.leftHandMode ? 0x111 : 0x110; }
         function rightCode() { return settings.leftHandMode ? 0x110 : 0x111; }
 
+        function emitKB(code, value) {
+            app.emit("keyboardEvent", {
+                type: 0x01,
+                code: code,
+                value: value,
+                hardware: false
+            });
+        }
+
+        function emitKeyCombo(keys) {
+            for (var i = 0; i < keys.length; i++) {
+                emitKB(keys[i], 1);
+            }
+            setTimeout(function () {
+                for (var j = keys.length - 1; j >= 0; j--) {
+                    emitKB(keys[j], 0);
+                }
+            }, 50);
+        }
+
         var isTapDragging = false;
         var isThreeFingerDragging = false;
         var lastTapTime = 0;
         var lastTapX = 0;
         var lastTapY = 0;
-        var gestureStartTime = 0;
-        var gestureStartX = 0;
-        var gestureStartY = 0;
-        var prevX = 0;
-        var prevY = 0;
-        var hasMoved = false;
-        var maxTouches = 0;
+
+        // 1-Finger
+        var oneFingerStartTime = 0;
+        var oneFingerStartX = 0;
+        var oneFingerStartY = 0;
+        var prevOneX = 0;
+        var prevOneY = 0;
+        var oneFingerMoved = false;
+
+        // 2-Finger
+        var twoFingerStartTime = 0;
+        var twoFingerStartX = 0;
+        var twoFingerStartY = 0;
+        var twoFingerSpan0 = 0;
+        var prevMidX = 0;
+        var prevMidY = 0;
+        var prevSpan = 0;
+        var twoFingerMoved = false;
+        var isPinching = false;
+        var lastTwoFingerTapTime = 0;
+
+        // 3-Finger
+        var threeFingerStartTime = 0;
+        var threeFingerStartX = 0;
+        var threeFingerStartY = 0;
+        var prevCentroidX = 0;
+        var prevCentroidY = 0;
+        var threeFingerMoved = false;
+
+        // Accumulators
         var accumX = 0;
         var accumY = 0;
         var scrollAccumY = 0;
+        var scrollAccumX = 0;
+        var zoomAccum = 0;
 
         options.btn_left && options.btn_left.addEventListener('touchstart', function (e) {
             if (e && e.cancelable) e.preventDefault();
@@ -300,71 +360,96 @@ var app = {
 
         options.area && options.area.addEventListener('touchstart', function (e) {
             if (e.cancelable) e.preventDefault();
-            var numTouches = e.targetTouches.length;
-            var t = e.targetTouches[0];
-            if (!t) return;
-
+            var num = e.targetTouches.length;
             var now = Date.now();
-            if (numTouches === 1) {
+
+            if (num === 1) {
+                var t = e.targetTouches[0];
                 var timeSinceLastTap = now - lastTapTime;
                 var distFromLastTap = Math.hypot(t.pageX - lastTapX, t.pageY - lastTapY);
+
                 if (timeSinceLastTap < 320 && distFromLastTap < 40) {
                     isTapDragging = true;
                     app.emit("touchpadEvent", 1 /*'EV_KEY'*/, 0x110 /*'BTN_LEFT'*/, 1);
                 } else {
                     isTapDragging = false;
                 }
-                gestureStartTime = now;
-                gestureStartX = t.pageX;
-                gestureStartY = t.pageY;
-                prevX = t.pageX;
-                prevY = t.pageY;
-                hasMoved = false;
-                maxTouches = 1;
+
+                oneFingerStartTime = now;
+                oneFingerStartX = t.pageX;
+                oneFingerStartY = t.pageY;
+                prevOneX = t.pageX;
+                prevOneY = t.pageY;
+                oneFingerMoved = false;
                 accumX = 0;
                 accumY = 0;
-                scrollAccumY = 0;
-            } else {
+
+            } else if (num === 2) {
                 if (isTapDragging) {
                     app.emit("touchpadEvent", 1 /*'EV_KEY'*/, 0x110 /*'BTN_LEFT'*/, 0);
                     isTapDragging = false;
                 }
-                maxTouches = Math.max(maxTouches, numTouches);
-                prevX = t.pageX;
-                prevY = t.pageY;
+                var t0 = e.targetTouches[0];
+                var t1 = e.targetTouches[1];
+                twoFingerStartTime = now;
+                twoFingerSpan0 = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
+                prevSpan = twoFingerSpan0;
+                var midX = (t0.pageX + t1.pageX) / 2;
+                var midY = (t0.pageY + t1.pageY) / 2;
+                twoFingerStartX = midX;
+                twoFingerStartY = midY;
+                prevMidX = midX;
+                prevMidY = midY;
+                twoFingerMoved = false;
+                isPinching = false;
+                scrollAccumY = 0;
+                scrollAccumX = 0;
+                zoomAccum = 0;
+
+            } else if (num === 3) {
+                if (isTapDragging) {
+                    app.emit("touchpadEvent", 1 /*'EV_KEY'*/, 0x110 /*'BTN_LEFT'*/, 0);
+                    isTapDragging = false;
+                }
+                var ta = e.targetTouches[0];
+                var tb = e.targetTouches[1];
+                var tc = e.targetTouches[2];
+                threeFingerStartTime = now;
+                var cX = (ta.pageX + tb.pageX + tc.pageX) / 3;
+                var cY = (ta.pageY + tb.pageY + tc.pageY) / 3;
+                threeFingerStartX = cX;
+                threeFingerStartY = cY;
+                prevCentroidX = cX;
+                prevCentroidY = cY;
+                threeFingerMoved = false;
+                isThreeFingerDragging = false;
+                accumX = 0;
+                accumY = 0;
             }
         });
 
         options.area && options.area.addEventListener('touchmove', function (e) {
             if (e.cancelable) e.preventDefault();
-            var numTouches = e.targetTouches.length;
-            maxTouches = Math.max(maxTouches, numTouches);
-
-            var t = e.targetTouches[0];
-            if (!t) return;
-
-            var dx = t.pageX - prevX;
-            var dy = t.pageY - prevY;
-            prevX = t.pageX;
-            prevY = t.pageY;
-
-            if (Math.abs(dx) + Math.abs(dy) > 3) {
-                hasMoved = true;
-            }
-
+            var num = e.targetTouches.length;
             var spd = settings.speed;
             var acc = settings.acceleration;
 
-            if (numTouches >= 3) {
-                // 3-finger drag
-                if (!isThreeFingerDragging && app.clicks === 0 && !isTapDragging) {
-                    app.emit("touchpadEvent", 1 /*'EV_KEY'*/, 0x110 /*'BTN_LEFT'*/, 1);
-                    isThreeFingerDragging = true;
-                }
+            if (num === 1) {
+                var t = e.targetTouches[0];
+                if (!t) return;
+
+                var dx = t.pageX - prevOneX;
+                var dy = t.pageY - prevOneY;
+                prevOneX = t.pageX;
+                prevOneY = t.pageY;
+
+                if (Math.abs(dx) + Math.abs(dy) > 3) oneFingerMoved = true;
+
                 var rawX = (dx >= 0 ? 1.0 : -1.0) * Math.pow(Math.abs(spd * dx), acc);
                 var rawY = (dy >= 0 ? 1.0 : -1.0) * Math.pow(Math.abs(spd * dy), acc);
                 accumX += rawX;
                 accumY += rawY;
+
                 var sendX = Math.trunc(accumX);
                 var sendY = Math.trunc(accumY);
                 if (sendX !== 0 || sendY !== 0) {
@@ -375,82 +460,214 @@ var app = {
                         ["touchpadEvent", 2 /*'EV_REL'*/, 1 /*'REL_Y'*/, sendY]
                     );
                 }
-            } else if (numTouches === 2) {
-                // 2-finger scroll
-                var scrollSign = settings.naturalScrolling ? 1 : -1;
-                scrollAccumY += (dy * scrollSign * 0.15 * spd);
-                var wheelSteps = Math.trunc(scrollAccumY);
-                if (wheelSteps !== 0) {
-                    scrollAccumY -= wheelSteps;
-                    app.emit("touchpadEvent", 2 /*'EV_REL'*/, 8 /*'REL_WHEEL'*/, wheelSteps);
+
+            } else if (num === 2) {
+                var t0 = e.targetTouches[0];
+                var t1 = e.targetTouches[1];
+                if (!t0 || !t1) return;
+
+                var currentSpan = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
+                var midX = (t0.pageX + t1.pageX) / 2;
+                var midY = (t0.pageY + t1.pageY) / 2;
+                var dSpan = currentSpan - prevSpan;
+                var dMidX = midX - prevMidX;
+                var dMidY = midY - prevMidY;
+                prevSpan = currentSpan;
+                prevMidX = midX;
+                prevMidY = midY;
+
+                var spanDeltaTotal = Math.abs(currentSpan - twoFingerSpan0);
+                var midDeltaTotal = Math.hypot(midX - twoFingerStartX, midY - twoFingerStartY);
+
+                if (spanDeltaTotal > 15 || midDeltaTotal > 6) {
+                    twoFingerMoved = true;
                 }
-            } else if (numTouches === 1) {
-                // 1-finger move / tap-drag
-                var rawX = (dx >= 0 ? 1.0 : -1.0) * Math.pow(Math.abs(spd * dx), acc);
-                var rawY = (dy >= 0 ? 1.0 : -1.0) * Math.pow(Math.abs(spd * dy), acc);
-                accumX += rawX;
-                accumY += rawY;
-                var sendX = Math.trunc(accumX);
-                var sendY = Math.trunc(accumY);
-                if (sendX !== 0 || sendY !== 0) {
-                    accumX -= sendX;
-                    accumY -= sendY;
-                    app.emit(
-                        ["touchpadEvent", 2 /*'EV_REL'*/, 0 /*'REL_X'*/, sendX],
-                        ["touchpadEvent", 2 /*'EV_REL'*/, 1 /*'REL_Y'*/, sendY]
-                    );
+
+                if (settings.pinchToZoom !== false && (isPinching || (spanDeltaTotal > 25 && spanDeltaTotal > 1.3 * midDeltaTotal))) {
+                    isPinching = true;
+                    zoomAccum += dSpan * 0.09;
+                    var zoomSteps = Math.trunc(zoomAccum);
+                    if (zoomSteps !== 0) {
+                        zoomAccum -= zoomSteps;
+                        emitKB(29 /* KEY_LEFTCTRL */, 1);
+                        app.emit("touchpadEvent", 2 /*'EV_REL'*/, 8 /*'REL_WHEEL'*/, zoomSteps);
+                    }
+                } else {
+                    var scrollSign = settings.naturalScrolling ? 1 : -1;
+                    var moveY = dMidY;
+                    var moveX = dMidX;
+
+                    if (Math.abs(moveY) > 2.2 * Math.abs(moveX)) {
+                        moveX = 0;
+                    } else if (Math.abs(moveX) > 2.2 * Math.abs(moveY)) {
+                        moveY = 0;
+                    }
+
+                    scrollAccumY += (moveY * scrollSign * 0.15 * spd);
+                    scrollAccumX += (moveX * scrollSign * 0.15 * spd);
+
+                    var wheelY = Math.trunc(scrollAccumY);
+                    var wheelX = Math.trunc(scrollAccumX);
+
+                    if (wheelY !== 0) {
+                        scrollAccumY -= wheelY;
+                        app.emit("touchpadEvent", 2 /*'EV_REL'*/, 8 /*'REL_WHEEL'*/, wheelY);
+                    }
+                    if (wheelX !== 0) {
+                        scrollAccumX -= wheelX;
+                        app.emit("touchpadEvent", 2 /*'EV_REL'*/, 6 /*'REL_HWHEEL'*/, wheelX);
+                    }
+                }
+
+            } else if (num === 3) {
+                var ta = e.targetTouches[0];
+                var tb = e.targetTouches[1];
+                var tc = e.targetTouches[2];
+                if (!ta || !tb || !tc) return;
+
+                var cX = (ta.pageX + tb.pageX + tc.pageX) / 3;
+                var cY = (ta.pageY + tb.pageY + tc.pageY) / 3;
+                var dCentroidX = cX - prevCentroidX;
+                var dCentroidY = cY - prevCentroidY;
+                prevCentroidX = cX;
+                prevCentroidY = cY;
+
+                if (Math.hypot(cX - threeFingerStartX, cY - threeFingerStartY) > 8) {
+                    threeFingerMoved = true;
+                }
+
+                var elapsed = Date.now() - threeFingerStartTime;
+                if (elapsed > 220) {
+                    if (!isThreeFingerDragging && app.clicks === 0 && !isTapDragging) {
+                        app.emit("touchpadEvent", 1 /*'EV_KEY'*/, 0x110 /*'BTN_LEFT'*/, 1);
+                        isThreeFingerDragging = true;
+                    }
+
+                    var rawX = (dCentroidX >= 0 ? 1.0 : -1.0) * Math.pow(Math.abs(spd * dCentroidX), acc);
+                    var rawY = (dCentroidY >= 0 ? 1.0 : -1.0) * Math.pow(Math.abs(spd * dCentroidY), acc);
+                    accumX += rawX;
+                    accumY += rawY;
+
+                    var sendX = Math.trunc(accumX);
+                    var sendY = Math.trunc(accumY);
+                    if (sendX !== 0 || sendY !== 0) {
+                        accumX -= sendX;
+                        accumY -= sendY;
+                        app.emit(
+                            ["touchpadEvent", 2 /*'EV_REL'*/, 0 /*'REL_X'*/, sendX],
+                            ["touchpadEvent", 2 /*'EV_REL'*/, 1 /*'REL_Y'*/, sendY]
+                        );
+                    }
                 }
             }
         });
 
         options.area && options.area.addEventListener('touchend', function (e) {
             if (e.cancelable) e.preventDefault();
+
+            if (isPinching) {
+                emitKB(29 /* KEY_LEFTCTRL */, 0);
+                isPinching = false;
+            }
+
             if (e.targetTouches.length === 0) {
-                var duration = Date.now() - gestureStartTime;
+                var now = Date.now();
+
                 if (isTapDragging) {
                     app.emit("touchpadEvent", 1 /*'EV_KEY'*/, 0x110 /*'BTN_LEFT'*/, 0);
                     isTapDragging = false;
                     lastTapTime = 0;
+
                 } else if (isThreeFingerDragging) {
                     app.emit("touchpadEvent", 1 /*'EV_KEY'*/, 0x110 /*'BTN_LEFT'*/, 0);
                     isThreeFingerDragging = false;
                     lastTapTime = 0;
-                } else if (!hasMoved && duration < 320 && app.clicks === 0) {
-                    if (maxTouches === 1) {
-                        app.emit(
-                            ["touchpadEvent", 1 /*'EV_KEY'*/, 0x110 /*'BTN_LEFT'*/, 1],
-                            ["touchpadEvent", 1 /*'EV_KEY'*/, 0x110 /*'BTN_LEFT'*/, 0]
-                        );
-                        lastTapTime = Date.now();
-                        lastTapX = gestureStartX;
-                        lastTapY = gestureStartY;
-                    } else if (maxTouches === 2) {
-                        app.emit(
-                            ["touchpadEvent", 1 /*'EV_KEY'*/, 0x111 /*'BTN_RIGHT'*/, 1],
-                            ["touchpadEvent", 1 /*'EV_KEY'*/, 0x111 /*'BTN_RIGHT'*/, 0]
-                        );
-                        lastTapTime = 0;
-                    } else if (maxTouches === 3) {
+
+                } else if (threeFingerStartTime > 0 && threeFingerMoved) {
+                    var dur3 = now - threeFingerStartTime;
+                    var total3X = prevCentroidX - threeFingerStartX;
+                    var total3Y = prevCentroidY - threeFingerStartY;
+                    var dist3 = Math.hypot(total3X, total3Y);
+
+                    if (dur3 < 380 && dist3 > 45) {
+                        if (Math.abs(total3Y) > 1.4 * Math.abs(total3X)) {
+                            if (total3Y < 0) {
+                                emitKeyCombo([125 /* Super */]);
+                            } else {
+                                emitKeyCombo([125 /* Super */, 32 /* D */]);
+                            }
+                        } else if (Math.abs(total3X) > 1.4 * Math.abs(total3Y)) {
+                            if (total3X > 0) {
+                                emitKeyCombo([29 /* Ctrl */, 56 /* Alt */, 105 /* Left */]);
+                            } else {
+                                emitKeyCombo([29 /* Ctrl */, 56 /* Alt */, 106 /* Right */]);
+                            }
+                        }
+                    }
+                    threeFingerStartTime = 0;
+
+                } else if (threeFingerStartTime > 0 && !threeFingerMoved && (now - threeFingerStartTime < 320)) {
+                    app.emit(
+                        ["touchpadEvent", 1 /*'EV_KEY'*/, 0x112 /*'BTN_MIDDLE'*/, 1],
+                        ["touchpadEvent", 1 /*'EV_KEY'*/, 0x112 /*'BTN_MIDDLE'*/, 0]
+                    );
+                    threeFingerStartTime = 0;
+                    lastTapTime = 0;
+
+                } else if (twoFingerStartTime > 0 && twoFingerMoved) {
+                    var dur2 = now - twoFingerStartTime;
+                    var total2X = prevMidX - twoFingerStartX;
+                    var total2Y = prevMidY - twoFingerStartY;
+
+                    if (dur2 < 320 && Math.abs(total2X) > 75 && Math.abs(total2X) > 2.5 * Math.abs(total2Y)) {
+                        if (total2X > 0) {
+                            emitKeyCombo([56 /* Alt */, 105 /* Left */]);
+                        } else {
+                            emitKeyCombo([56 /* Alt */, 106 /* Right */]);
+                        }
+                    }
+                    twoFingerStartTime = 0;
+
+                } else if (twoFingerStartTime > 0 && !twoFingerMoved && (now - twoFingerStartTime < 320)) {
+                    var timeSinceLast2Tap = now - lastTwoFingerTapTime;
+                    if (timeSinceLast2Tap < 300) {
                         app.emit(
                             ["touchpadEvent", 1 /*'EV_KEY'*/, 0x112 /*'BTN_MIDDLE'*/, 1],
                             ["touchpadEvent", 1 /*'EV_KEY'*/, 0x112 /*'BTN_MIDDLE'*/, 0]
                         );
-                        lastTapTime = 0;
-                    } else if (maxTouches >= 4) {
+                        lastTwoFingerTapTime = 0;
+                    } else {
                         app.emit(
-                            ["touchpadEvent", 1 /*'EV_KEY'*/, 0x113 /*'BTN_SIDE'*/, 3],
-                            ["touchpadEvent", 1 /*'EV_KEY'*/, 0x113 /*'BTN_SIDE'*/, 3]
+                            ["touchpadEvent", 1 /*'EV_KEY'*/, 0x111 /*'BTN_RIGHT'*/, 1],
+                            ["touchpadEvent", 1 /*'EV_KEY'*/, 0x111 /*'BTN_RIGHT'*/, 0]
                         );
-                        lastTapTime = 0;
+                        lastTwoFingerTapTime = now;
                     }
+                    twoFingerStartTime = 0;
+                    lastTapTime = 0;
+
+                } else if (oneFingerStartTime > 0 && !oneFingerMoved && (now - oneFingerStartTime < 320) && app.clicks === 0) {
+                    app.emit(
+                        ["touchpadEvent", 1 /*'EV_KEY'*/, 0x110 /*'BTN_LEFT'*/, 1],
+                        ["touchpadEvent", 1 /*'EV_KEY'*/, 0x110 /*'BTN_LEFT'*/, 0]
+                    );
+                    lastTapTime = now;
+                    lastTapX = oneFingerStartX;
+                    lastTapY = oneFingerStartY;
+                    oneFingerStartTime = 0;
+
                 } else {
                     lastTapTime = 0;
+                    oneFingerStartTime = 0;
+                    twoFingerStartTime = 0;
+                    threeFingerStartTime = 0;
                 }
-                hasMoved = false;
-                maxTouches = 0;
+
                 accumX = 0;
                 accumY = 0;
                 scrollAccumY = 0;
+                scrollAccumX = 0;
+                zoomAccum = 0;
             }
         });
     },

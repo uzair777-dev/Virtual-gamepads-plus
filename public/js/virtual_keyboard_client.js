@@ -18,17 +18,31 @@ require(["common"], function(common) {
 
         function loadKeyboardLayout(layout, cb) {
             var fn = settings.ALL_KEYBOARDS[layout];
-            if (fn == null) throw 'unknown layout: '+layout;
-            fn = settings.KEYBOARDS_PATH+fn;
+            if (fn == null) throw 'unknown layout: ' + layout;
+            fn = settings.KEYBOARDS_PATH + fn;
             var div = $('#keyboard-container');
-            $.get(fn, function (data) {
-                var svg = $(data.rootElement);
-                svg.removeAttr('height').removeAttr('width').attr('id', 'keyboard');
-                div.html('');
-                div.append(svg);
-                if (cb != null) cb();
+            $.ajax({
+                url: fn,
+                dataType: 'xml',
+                success: function (data) {
+                    var root = (data && (data.documentElement || data.rootElement)) || (data && data.querySelector && data.querySelector('svg')) || data;
+                    var svg = $(root);
+                    if (!svg.is('svg') && svg.find('svg').length) {
+                        svg = svg.find('svg');
+                    }
+                    svg.removeAttr('height').removeAttr('width').attr('id', 'keyboard');
+                    div.html('');
+                    div.append(svg);
+                    if (cb != null) cb();
+                },
+                error: function () {
+                    $.get(fn, function (textData) {
+                        div.html(textData);
+                        div.find('svg').removeAttr('height').removeAttr('width').attr('id', 'keyboard');
+                        if (cb != null) cb();
+                    }, 'text');
+                }
             });
-
         }
 
 
