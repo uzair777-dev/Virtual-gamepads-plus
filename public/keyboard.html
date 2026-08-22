@@ -132,6 +132,75 @@
               </small>
             </div>
           </div>
+          <hr />
+          <h2>Touchpad</h2>
+          <div class="form-row">
+            <label for="settings-speed">Speed</label>
+            <div class="nested">
+              <input
+                type="range"
+                name="speed"
+                id="settings-speed"
+                step="0.1"
+                min="0.1"
+                max="5"
+              />
+              <br />
+              <small class="explain center">
+                <output id="settings-speed-output"></output>
+              </small>
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="settings-acceleration">Acceleration</label>
+            <div class="nested">
+              <input
+                type="range"
+                name="acceleration"
+                id="settings-acceleration"
+                step="0.1"
+                min="1"
+                max="2.5"
+              />
+              <br />
+              <small class="explain center">
+                <output id="settings-acceleration-output"></output>
+              </small>
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="settings-natural-scroll">Natural scrolling</label>
+            <div class="nested">
+              <label class="switch">
+                <input
+                  type="checkbox"
+                  id="settings-natural-scroll"
+                />
+                <div class="slider round"></div>
+              </label>
+              <br />
+              <small class="explain">
+                Scroll direction follows your finger movement
+                (like a touchscreen).
+              </small>
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="settings-left-hand">Left-hand mode</label>
+            <div class="nested">
+              <label class="switch">
+                <input
+                  type="checkbox"
+                  id="settings-left-hand"
+                />
+                <div class="slider round"></div>
+              </label>
+              <br />
+              <small class="explain">
+                Swaps left and right mouse button areas.
+              </small>
+            </div>
+          </div>
           <br />
           <div class="credits">
             <h4>Credits</h4>
@@ -158,6 +227,14 @@
         </form>
       </div>
     </div>
+    <button id="btn-touchpad-toggle" class="touchpad-toggle-btn" title="Toggle Touchpad">
+      <img id="btn-touchpad-icon" src="images/icons/touchpad-enable.svg" alt="Touchpad Toggle" />
+    </button>
+    <div id="keyboard-touchpad-overlay" class="hidden">
+      <div id="kb-touchpad-area"></div>
+      <div id="kb-touchpad-btn_left"></div>
+      <div id="kb-touchpad-btn_right"></div>
+    </div>
     <div id="keyboard-container"></div>
     <div class="buttonContainer">
       <button id="btn-back" onclick="window.location.href='/'">
@@ -174,5 +251,6 @@
       </button>
     </div>
     <script src="/js/wakelock.js"></script>
+    <script src="js/keyboard_touchpad.js"></script>
   </body>
 </html>

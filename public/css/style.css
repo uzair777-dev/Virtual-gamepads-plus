@@ -304,6 +304,88 @@ svg#keyboard>g>g.active>path:first-child {
     fill: #35a !important;
 }
 
+/*************************************\
+|*** keyboard touchpad overlay     ***|
+\*************************************/
+
+.touchpad-toggle-btn {
+    position: fixed;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: #e0e0e0;
+    border: 3px solid #7c7c7c;
+    border-radius: 13px;
+    padding: 0.2rem 0.4rem;
+    cursor: pointer;
+    z-index: 1001;
+    transition: 0.1s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.touchpad-toggle-btn.active {
+    border-color: #ff5050;
+}
+
+.touchpad-toggle-btn img {
+    height: 4vh;
+    min-height: 24px;
+    max-height: 36px;
+    width: auto;
+    padding: 0.2vh;
+    display: block;
+}
+
+#keyboard-touchpad-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 500;
+    background-color: #e0e0e0;
+}
+
+#kb-touchpad-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 20%;
+    background: radial-gradient(ellipse farthest-corner, rgba(255, 255, 255, 0.6) 0%, rgba(0, 0, 0, 0.04) 100%);
+    border-bottom: 1px solid #7c7c7c;
+}
+
+#kb-touchpad-btn_left {
+    left: 0;
+    right: 50%;
+    border-right: 1px solid #7c7c7c;
+}
+
+#kb-touchpad-btn_right {
+    left: 50%;
+    right: 0;
+    border-left: 1px solid #7c7c7c;
+}
+
+#kb-touchpad-btn_left,
+#kb-touchpad-btn_right {
+    position: absolute;
+    top: 80%;
+    bottom: 0;
+    border-top: 1px solid #7c7c7c;
+    cursor: pointer;
+}
+
+#kb-touchpad-btn_left.active,
+#kb-touchpad-btn_right.active,
+#kb-touchpad-btn_left:active,
+#kb-touchpad-btn_right:active {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
 small.explain {
     font-size: 0.7em;
     color: #666;

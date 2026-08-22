@@ -40,6 +40,10 @@ require(["common"], function(common) {
         require(["lib/domReady"], function (domReady) {
             domReady(function () {
                 var socket = io();
+                window._kbSocket = socket;
+                try {
+                    window.dispatchEvent(new CustomEvent('kbSocketReady', { detail: socket }));
+                } catch(e) {}
 
                 init(function () {
                     $('.loader').hide();
