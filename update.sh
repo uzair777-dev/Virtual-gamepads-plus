@@ -269,18 +269,35 @@ if command -v notify-send &>/dev/null; then
     fi
 fi
 
-# 12. Prompt user to restart application
+# 12. Exit helper with countdown
+exit_with_countdown() {
+    local seconds=${1:-5}
+    if [ -t 0 ] || [ -c /dev/tty ]; then
+        echo ""
+        for ((i=seconds; i>=1; i--)); do
+            echo -ne "\r${CYAN}Updater will exit in ${BOLD}${i}${RESET}${CYAN}s (or press any key to exit)...${RESET} "
+            if read -t 1 -n 1 < /dev/tty 2>/dev/null; then
+                break
+            fi
+        done
+        echo -e "\r\033[K"
+    else
+        sleep "$seconds"
+    fi
+    exit 0
+}
+
+# 13. Prompt user to restart application
 if [ $NO_RESTART -eq 1 ]; then
     echo "Restart skipped. Run 'vgp' or 'vgp --gui' when you are ready."
-    exit 0
+    exit_with_countdown 5
 fi
 
 if [ -n "$RELAUNCH_TARGET" ]; then
     if [ "$RELAUNCH_TARGET" == "gui" ]; then
         echo -e "${BLUE}Restarting Virtual Gamepads Plus GUI...${RESET}"
-        sleep 1
         nohup "$SCRIPT_DIR/launch_gui.sh" >/dev/null 2>&1 &
-        exit 0
+        exit_with_countdown 5
     elif [ "$RELAUNCH_TARGET" == "cli" ]; then
         echo -e "${BLUE}Restarting Virtual Gamepads Plus CLI server...${RESET}"
         sleep 1
@@ -298,13 +315,16 @@ if [ -t 0 ] || [ -c /dev/tty ]; then
         if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
             echo "Starting GUI..."
             nohup "$SCRIPT_DIR/launch_gui.sh" >/dev/null 2>&1 &
+            exit_with_countdown 5
         else
             echo "Starting CLI server..."
             exec "$SCRIPT_DIR/run.sh"
         fi
     else
         echo "You can start the app later by running 'vgp' or 'vgp --gui'."
+        exit_with_countdown 5
     fi
 else
     echo "Please restart the application by running 'vgp' or 'vgp --gui'."
+    exit_with_countdown 5
 fi
