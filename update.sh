@@ -12,6 +12,19 @@ if [ -n "$VGP_REPO_DIR" ] && [ -d "$VGP_REPO_DIR/.git" ]; then
 fi
 cd "$SCRIPT_DIR"
 
+# Cleanup handler for temporary updater scripts
+cleanup() {
+    if [[ "${BASH_SOURCE[0]}" == /tmp/vgp_updater_* ]] && [ -f "${BASH_SOURCE[0]}" ]; then
+        rm -f "${BASH_SOURCE[0]}" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT INT TERM
+
+# Clean up any leftover temporary updater scripts from past runs
+if [ -z "$VGP_UPDATER_RELOADED" ]; then
+    rm -f /tmp/vgp_updater_*.sh 2>/dev/null || true
+fi
+
 # Formatting helpers
 if [ -t 1 ]; then
     BOLD="\033[1m"
@@ -95,7 +108,6 @@ if [ -z "$VGP_UPDATER_RELOADED" ]; then
             chmod +x "$TMP_UPDATER"
             export VGP_UPDATER_RELOADED=1
             export VGP_REPO_DIR="$SCRIPT_DIR"
-            trap 'rm -f "/tmp/vgp_updater_$$.sh" 2>/dev/null' EXIT
             exec bash "$TMP_UPDATER" "$@"
         fi
     fi
