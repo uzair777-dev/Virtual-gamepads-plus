@@ -402,6 +402,85 @@ svg#keyboard>g>g.active>path:first-child {
     background-color: rgba(0, 0, 0, 0.1);
 }
 
+/* Edge scroll guide indicator (CSS pseudo-element based: ::before for left, ::after for right) */
+#kb-touchpad-area.edge-scroll-left::before,
+#kb-touchpad-area.edge-scroll-both::before,
+#kb-touchpad-area.edge-scroll-right::after,
+#kb-touchpad-area.edge-scroll-both::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: var(--edge-zone-width, 12%);
+    min-width: 24px;
+    pointer-events: none;
+    opacity: 0.38;
+    transition: opacity 0.2s cubic-bezier(0.2, 0, 0, 1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    z-index: 5;
+}
+
+/* Left guide strip (::before) */
+#kb-touchpad-area.edge-scroll-left::before,
+#kb-touchpad-area.edge-scroll-both::before {
+    left: 0;
+    border-right: 3px dashed rgba(33, 150, 243, 0.5);
+    background: linear-gradient(to right, rgba(33, 150, 243, 0.14), rgba(33, 150, 243, 0.02), transparent);
+}
+
+/* Right guide strip (::after) */
+#kb-touchpad-area.edge-scroll-right::after,
+#kb-touchpad-area.edge-scroll-both::after {
+    right: 0;
+    border-left: 3px dashed rgba(33, 150, 243, 0.5);
+    background: linear-gradient(to left, rgba(33, 150, 243, 0.14), rgba(33, 150, 243, 0.02), transparent);
+}
+
+/* Active Left Glow (::before) */
+#kb-touchpad-area.edge-scrolling-left::before,
+#kb-touchpad-area.edge-scroll-left.edge-scrolling::before {
+    opacity: 1;
+    border-right: 3.5px solid #00b4d8;
+    background: linear-gradient(to right, rgba(0, 180, 216, 0.42), rgba(0, 119, 182, 0.2), transparent);
+    box-shadow: inset 5px 0 18px rgba(0, 180, 216, 0.38);
+}
+
+/* Active Right Glow (::after) */
+#kb-touchpad-area.edge-scrolling-right::after,
+#kb-touchpad-area.edge-scroll-right.edge-scrolling::after {
+    opacity: 1;
+    border-left: 3.5px solid #00b4d8;
+    background: linear-gradient(to left, rgba(0, 180, 216, 0.42), rgba(0, 119, 182, 0.2), transparent);
+    box-shadow: inset -5px 0 18px rgba(0, 180, 216, 0.38);
+}
+
+/* Dark mode idle */
+body.dark #kb-touchpad-area.edge-scroll-left::before,
+body.dark #kb-touchpad-area.edge-scroll-both::before {
+    border-right-color: rgba(0, 229, 255, 0.45);
+    background: linear-gradient(to right, rgba(0, 229, 255, 0.12), rgba(0, 229, 255, 0.01), transparent);
+}
+
+body.dark #kb-touchpad-area.edge-scroll-right::after,
+body.dark #kb-touchpad-area.edge-scroll-both::after {
+    border-left-color: rgba(0, 229, 255, 0.45);
+    background: linear-gradient(to left, rgba(0, 229, 255, 0.12), rgba(0, 229, 255, 0.01), transparent);
+}
+
+/* Dark mode active */
+body.dark #kb-touchpad-area.edge-scrolling-left::before,
+body.dark #kb-touchpad-area.edge-scroll-left.edge-scrolling::before {
+    border-right: 3.5px solid #00e5ff;
+    background: linear-gradient(to right, rgba(0, 229, 255, 0.48), rgba(33, 150, 243, 0.22), transparent);
+    box-shadow: inset 5px 0 22px rgba(0, 229, 255, 0.55);
+}
+
+body.dark #kb-touchpad-area.edge-scrolling-right::after,
+body.dark #kb-touchpad-area.edge-scroll-right.edge-scrolling::after {
+    border-left: 3.5px solid #00e5ff;
+    background: linear-gradient(to left, rgba(0, 229, 255, 0.48), rgba(33, 150, 243, 0.22), transparent);
+    box-shadow: inset -5px 0 22px rgba(0, 229, 255, 0.55);
+}
+
 small.explain {
     font-size: 0.7em;
     color: #666;

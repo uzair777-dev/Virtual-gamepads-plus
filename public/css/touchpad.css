@@ -11,7 +11,6 @@ html, body {
     margin: 0;
     touch-action: none;
     overscroll-behavior: none;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 body {
@@ -21,11 +20,62 @@ body {
     right: 0;
     bottom: 0;
     left: 0;
-    background: #1a1a1a;
+    background-color: #e0e0e0;
 }
 
 body.dark {
-    background: #121212 url(../images/noise.png);
+    background: #292929 url(../images/noise.png);
+}
+
+html {
+    font-family: sans-serif;
+}
+
+.action-btn {
+    position: absolute;
+    background: none;
+    border: none;
+    cursor: pointer;
+    z-index: 999;
+    padding: 0;
+    margin: 0;
+}
+
+.action-btn img {
+    width: 3rem;
+    height: 3rem;
+    display: block;
+}
+
+#btn-fullscreen {
+    top: .2rem;
+    left: .2rem;
+}
+
+#btn-dark {
+    top: .2rem;
+    left: 3.4rem;
+}
+
+#btn-back {
+    top: .2rem;
+    right: 3.4rem;
+}
+
+#settings-gear {
+    position: absolute;
+    top: .2rem;
+    right: .2rem;
+    float: right;
+    cursor: pointer;
+    z-index: 999;
+}
+
+#settings-gear img {
+    width: 3rem;
+    height: 3rem;
+    fill: #666;
+    cursor: pointer;
 }
 
 #touchpad {
@@ -34,8 +84,6 @@ body.dark {
     right: 0;
     bottom: 0;
     top: 0;
-    display: flex;
-    flex-direction: column;
 }
 
 #touchpad-area {
@@ -43,60 +91,143 @@ body.dark {
     left: 0;
     top: 0;
     right: 0;
-    bottom: 22%;
-    background: radial-gradient(ellipse farthest-corner, rgba(255, 255, 255, 0.07) 0%, rgba(0, 0, 0, 0.25) 100%);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    bottom: 20%;
+    background: radial-gradient(ellipse farthest-corner, rgba(255, 255, 255, 0.6) 0%, rgba(0, 0, 0, 0.04) 100%);
+    border-bottom: 1px solid #7c7c7c;
     touch-action: none;
 }
 
 body.dark #touchpad-area {
-    background: radial-gradient(ellipse farthest-corner, rgba(255, 255, 255, 0.04) 0%, rgba(0, 0, 0, 0.5) 100%);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    background: radial-gradient(ellipse farthest-corner, rgba(255, 255, 255, 0.10) 0%, rgba(0, 0, 0, 0.01) 100%);
+    border-bottom: 1px solid #242424;
 }
 
-.touchpad-btn {
+#touchpad-btn_left,
+#touchpad-btn_right {
     position: absolute;
-    top: 78%;
+    top: 80%;
     bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.04);
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid #7c7c7c;
     cursor: pointer;
     touch-action: none;
-    transition: background 0.1s ease;
 }
 
 #touchpad-btn_left {
     left: 0;
     right: 50%;
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid #7c7c7c;
 }
 
 #touchpad-btn_right {
     left: 50%;
     right: 0;
-    border-left: 1px solid rgba(0, 0, 0, 0.4);
+    border-left: 1px solid #7c7c7c;
 }
 
-.touchpad-btn:active,
-.touchpad-btn.active {
-    background: rgba(255, 255, 255, 0.18) !important;
-    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
+body.dark #touchpad-btn_left,
+body.dark #touchpad-btn_right {
+    border-top: 1px solid #383838;
 }
 
-.btn-label {
-    color: rgba(255, 255, 255, 0.45);
-    font-size: 0.95rem;
-    font-weight: 500;
-    letter-spacing: 0.5px;
+body.dark #touchpad-btn_left {
+    border-right: 1px solid #242424;
+}
+
+body.dark #touchpad-btn_right {
+    border-left: 1px solid #383838;
+}
+
+#touchpad-btn_left.active,
+#touchpad-btn_right.active,
+#touchpad-btn_left:active,
+#touchpad-btn_right:active {
+    background-color: rgba(0, 0, 0, 0.12);
+}
+
+body.dark #touchpad-btn_left.active,
+body.dark #touchpad-btn_right.active,
+body.dark #touchpad-btn_left:active,
+body.dark #touchpad-btn_right:active {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Edge Scroll Indicators (CSS pseudo-element based: ::before for left, ::after for right) */
+#touchpad-area.edge-scroll-left::before,
+#touchpad-area.edge-scroll-both::before,
+#touchpad-area.edge-scroll-right::after,
+#touchpad-area.edge-scroll-both::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: var(--edge-zone-width, 12%);
+    min-width: 24px;
     pointer-events: none;
-    text-transform: uppercase;
+    opacity: 0.38;
+    transition: opacity 0.2s cubic-bezier(0.2, 0, 0, 1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    z-index: 5;
 }
 
-.touchpad-btn.active .btn-label {
-    color: #fff;
+/* Left guide strip (::before) */
+#touchpad-area.edge-scroll-left::before,
+#touchpad-area.edge-scroll-both::before {
+    left: 0;
+    border-right: 3px dashed rgba(33, 150, 243, 0.5);
+    background: linear-gradient(to right, rgba(33, 150, 243, 0.14), rgba(33, 150, 243, 0.02), transparent);
+}
+
+/* Right guide strip (::after) */
+#touchpad-area.edge-scroll-right::after,
+#touchpad-area.edge-scroll-both::after {
+    right: 0;
+    border-left: 3px dashed rgba(33, 150, 243, 0.5);
+    background: linear-gradient(to left, rgba(33, 150, 243, 0.14), rgba(33, 150, 243, 0.02), transparent);
+}
+
+/* Active Left Glow (::before) */
+#touchpad-area.edge-scrolling-left::before,
+#touchpad-area.edge-scroll-left.edge-scrolling::before {
+    opacity: 1;
+    border-right: 3.5px solid #00b4d8;
+    background: linear-gradient(to right, rgba(0, 180, 216, 0.42), rgba(0, 119, 182, 0.2), transparent);
+    box-shadow: inset 5px 0 18px rgba(0, 180, 216, 0.38);
+}
+
+/* Active Right Glow (::after) */
+#touchpad-area.edge-scrolling-right::after,
+#touchpad-area.edge-scroll-right.edge-scrolling::after {
+    opacity: 1;
+    border-left: 3.5px solid #00b4d8;
+    background: linear-gradient(to left, rgba(0, 180, 216, 0.42), rgba(0, 119, 182, 0.2), transparent);
+    box-shadow: inset -5px 0 18px rgba(0, 180, 216, 0.38);
+}
+
+/* Dark mode idle */
+body.dark #touchpad-area.edge-scroll-left::before,
+body.dark #touchpad-area.edge-scroll-both::before {
+    border-right-color: rgba(0, 229, 255, 0.45);
+    background: linear-gradient(to right, rgba(0, 229, 255, 0.12), rgba(0, 229, 255, 0.01), transparent);
+}
+
+body.dark #touchpad-area.edge-scroll-right::after,
+body.dark #touchpad-area.edge-scroll-both::after {
+    border-left-color: rgba(0, 229, 255, 0.45);
+    background: linear-gradient(to left, rgba(0, 229, 255, 0.12), rgba(0, 229, 255, 0.01), transparent);
+}
+
+/* Dark mode active */
+body.dark #touchpad-area.edge-scrolling-left::before,
+body.dark #touchpad-area.edge-scroll-left.edge-scrolling::before {
+    border-right: 3.5px solid #00e5ff;
+    background: linear-gradient(to right, rgba(0, 229, 255, 0.48), rgba(33, 150, 243, 0.22), transparent);
+    box-shadow: inset 5px 0 22px rgba(0, 229, 255, 0.55);
+}
+
+body.dark #touchpad-area.edge-scrolling-right::after,
+body.dark #touchpad-area.edge-scroll-right.edge-scrolling::after {
+    border-left: 3.5px solid #00e5ff;
+    background: linear-gradient(to left, rgba(0, 229, 255, 0.48), rgba(33, 150, 243, 0.22), transparent);
+    box-shadow: inset -5px 0 22px rgba(0, 229, 255, 0.55);
 }
 
 #connecting {

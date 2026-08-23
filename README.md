@@ -157,16 +157,20 @@ Got tired of jumping between the keyboard page and the touchpad page just to cli
 ![Virtual Touchpad](https://github.com/uzair777-dev/Virtual-gamepads-plus/blob/main/public/images/screenshots/touchpad_light.jpg?raw=true)
 
 The original touchpad gestures were pretty barebones and janky, so the whole gesture engine got rewritten from the ground up (both on the dedicated touchpad and the keyboard overlay):
-- **1-Finger**: Smooth movement with power-law acceleration, tap to left click, double tap & hold to drag.
-- **2-Finger**: Tap for right click, double tap for middle click, smooth 2D scrolling (with axis lock so your page doesn't wobble sideways while scrolling vertically), pinch-to-zoom (Ctrl + Wheel), and fast swipe left/right for browser Back/Forward.
+- **1-Finger**: Precision 1€ (One Euro) adaptive anti-jitter filtering for micro-targeting text and precision cursor control, velocity-gain ballistic acceleration, rock-solid double tap & drag (with 250ms lift-to-reposition drag lock), tap to left click, plus **Edge Scrolling** (slide your thumb along the right, left, or both edges of the pad to scroll vertically with configurable thickness).
+- **2-Finger**: Tap for right click, double tap for middle click, inertial momentum scrolling (flick to coast smoothly), 2D orthogonal axis locking, vector dot-product pinch-to-zoom disambiguation (Ctrl + Wheel), and fast swipe left/right for browser Back/Forward.
 - **3-Finger**: Tap for middle click (handy for opening/closing browser tabs or pasting on Linux), 3-finger drag & drop, and fast swipes (Swipe Up for Overview/Super, Down for Show Desktop / Super+D, Left/Right for switching Workspaces).
 - **4-Finger**: Tap for side click.
 - **Button Chording**: Pressing both Left and Right bottom buttons at the same time gives you Middle Click & Hold (super useful for 3D orbiting in Blender/CAD or middle-button drag scrolling).
-- **Zero Cursor Jumps**: Re-anchors touches when lifting or adding fingers so your cursor doesn't teleport across your screen.
+- **Zero Cursor Jumps & Ghost Click Immunity**: Persistent touch identifier tracking and staggered lift cooldown so your cursor never teleports across your screen.
 
 ### Touchpad Settings & Customization
 Click the gear icon on the touchpad or keyboard to customize everything:
-- Cursor speed & acceleration curve sliders
+- Cursor speed, continuous ballistic acceleration curve, and scroll sensitivity sliders
+- Inertial scrolling toggle (smooth decay physics after lifting two fingers)
+- Tap-to-drag reposition lock toggle (keep dragging even if you lift your finger briefly)
+- Edge scrolling mode (Disabled, Right edge, Left edge, or Both edges)
+- Edge zone thickness slider (5% to 30% width with live percentage display)
 - Natural scrolling toggle (makes scrolling follow your finger direction)
 - Left-hand mode (swaps left and right mouse buttons both visually and in code)
 - Toggles for pinch-to-zoom, horizontal scrolling, and 3-finger window management swipes

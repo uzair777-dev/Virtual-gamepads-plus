@@ -107,28 +107,22 @@
       <button id="setJoystick">joystick</button>
       <button id="goFullscreen">fullscreen</button>
     </menu>
-    <div class="buttonContainer">
-      <button id="btn-back" onclick="window.location.href='/'">
-        <img id="btn-back-icon" src="images/icons/back.svg" />
-      </button>
-      <button id="btn-fullscreen" onclick="toggleFullscreen()">
-        <img id="btn-fullscreen-icon" src="images/icons/fullscreen.svg" />
-      </button>
-      <button id="btn-dark" onclick="toggleDark()">
-        <img id="btn-dark-icon" src="images/icons/moon.svg" />
-      </button>
-      <span id="settings-gear">
-        <img id="gear-svg" src="images/icons/settings.svg" />
-      </span>
-    </div>
+    <button class="action-btn" id="btn-fullscreen" onclick="toggleFullscreen()">
+      <img id="btn-fullscreen-icon" src="images/icons/fullscreen.svg" />
+    </button>
+    <button class="action-btn" id="btn-dark" onclick="toggleDark()">
+      <img id="btn-dark-icon" src="images/icons/moon.svg" />
+    </button>
+    <button class="action-btn" id="btn-back" onclick="window.location.href='/'">
+      <img id="btn-back-icon" src="images/icons/back.svg" />
+    </button>
+    <span id="settings-gear">
+      <img id="gear-svg" src="images/icons/settings.svg" />
+    </span>
     <section id="touchpad" style="display: block">
       <div id="touchpad-area"></div>
-      <div id="touchpad-btn_left" class="touchpad-btn">
-        <span class="btn-label" id="label-btn_left">Left</span>
-      </div>
-      <div id="touchpad-btn_right" class="touchpad-btn">
-        <span class="btn-label" id="label-btn_right">Right</span>
-      </div>
+      <div id="touchpad-btn_left"></div>
+      <div id="touchpad-btn_right"></div>
     </section>
     <section id="joystick" style="display: none"></section>
     <div id="connecting">
@@ -174,6 +168,23 @@
               <br />
               <small class="explain center">
                 <output id="settings-acceleration-output"></output>
+              </small>
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="settings-scroll-sensitivity">Scroll sensitivity</label>
+            <div class="nested">
+              <input
+                type="range"
+                name="scrollSensitivity"
+                id="settings-scroll-sensitivity"
+                step="0.1"
+                min="0.2"
+                max="3"
+              />
+              <br />
+              <small class="explain center">
+                <output id="settings-scroll-sensitivity-output"></output>
               </small>
             </div>
           </div>
@@ -262,6 +273,75 @@
               <br />
               <small class="explain">
                 Swipe up (Overview), down (Desktop), left/right (Workspaces).
+              </small>
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="settings-inertial-scroll">Inertial scrolling</label>
+            <div class="nested">
+              <label class="switch">
+                <input
+                  type="checkbox"
+                  id="settings-inertial-scroll"
+                  name="inertialScrolling"
+                  checked
+                />
+                <div class="slider round"></div>
+              </label>
+              <br />
+              <small class="explain">
+                Smooth momentum glide when releasing 2-finger scroll.
+              </small>
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="settings-drag-lock">Tap-to-drag lock</label>
+            <div class="nested">
+              <label class="switch">
+                <input
+                  type="checkbox"
+                  id="settings-drag-lock"
+                  name="dragLock"
+                  checked
+                />
+                <div class="slider round"></div>
+              </label>
+              <br />
+              <small class="explain">
+                Allows lifting your finger briefly to reposition while dragging.
+              </small>
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="settings-edge-scroll">Edge scrolling</label>
+            <div class="nested">
+              <select id="settings-edge-scroll" name="edgeScroll">
+                <option value="none">Disabled</option>
+                <option value="right">Right edge</option>
+                <option value="left">Left edge</option>
+                <option value="both">Both edges</option>
+              </select>
+              <br />
+              <small class="explain">
+                Drag a single finger along the edge to scroll vertically.
+              </small>
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="settings-edge-scroll-thickness">Edge zone thickness</label>
+            <div class="nested">
+              <input
+                type="range"
+                name="edgeScrollThickness"
+                id="settings-edge-scroll-thickness"
+                step="1"
+                min="5"
+                max="30"
+                value="12"
+              />
+              <br />
+              <small class="explain center">
+                <output id="settings-edge-scroll-thickness-output"></output>
               </small>
             </div>
           </div>
