@@ -33,7 +33,7 @@ require(["common"], function(common) {
 
                 return false;
             });
-            if (location.href.match(/\?analog$/)){
+            if (location.search.includes('analog') || location.href.match(/[\?&]analog\b/)){
                 $('[href="gamepad.html"]').attr('href', 'gamepad.html?analog');
             }
         });

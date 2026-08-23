@@ -181,12 +181,29 @@ body.slide-left {
     padding: 0.5vh;
 }
 
-.dark {
+body.dark {
+    background-color: #121212;
+    color: #f0f0f0;
+}
+
+body.dark .buttonContainer {
+    background: #1e1e1e;
+    border-color: #383838;
+}
+
+body.dark .buttonContainer>button {
+    background-color: #2a2a2a;
+    border-color: #484848;
+}
+
+body.dark .buttonContainer>button>img {
     filter: invert(1);
 }
 
-body.dark {
-    background-color: #000;
+body.dark #slider-gyro-div {
+    border-color: #484848;
+    background: #2a2a2a;
+    color: #f0f0f0;
 }
 
 #accelerataion-bar {
@@ -309,6 +326,10 @@ svg#keyboard {
     max-height: calc(100dvh - 3.5rem);
 }
 
+body.dark svg#keyboard {
+    filter: invert(0.88) hue-rotate(180deg);
+}
+
 svg#keyboard>g>g {
     cursor: pointer;
 }
@@ -338,6 +359,15 @@ svg#keyboard>g>g.active>path:first-child {
     justify-content: center;
 }
 
+body.dark .touchpad-toggle-btn {
+    background: #2a2a2a;
+    border-color: #484848;
+}
+
+body.dark .touchpad-toggle-btn img {
+    filter: invert(1);
+}
+
 .touchpad-toggle-btn.active {
     border-color: #ff5050;
 }
@@ -364,6 +394,10 @@ svg#keyboard>g>g.active>path:first-child {
     background-color: #e0e0e0;
 }
 
+body.dark #keyboard-touchpad-overlay {
+    background-color: #121212;
+}
+
 #kb-touchpad-area {
     position: absolute;
     left: 0;
@@ -372,6 +406,11 @@ svg#keyboard>g>g.active>path:first-child {
     bottom: 20%;
     background: radial-gradient(ellipse farthest-corner, rgba(255, 255, 255, 0.6) 0%, rgba(0, 0, 0, 0.04) 100%);
     border-bottom: 1px solid #7c7c7c;
+}
+
+body.dark #kb-touchpad-area {
+    background: radial-gradient(ellipse farthest-corner, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%), #1a1a1a;
+    border-bottom: 1.5px solid rgba(255, 255, 255, 0.2);
 }
 
 #kb-touchpad-btn_left {
@@ -395,11 +434,32 @@ svg#keyboard>g>g.active>path:first-child {
     cursor: pointer;
 }
 
+body.dark #kb-touchpad-btn_left,
+body.dark #kb-touchpad-btn_right {
+    background-color: #222222;
+    border-top: 1.5px solid rgba(255, 255, 255, 0.2);
+}
+
+body.dark #kb-touchpad-btn_left {
+    border-right: 1.5px solid rgba(255, 255, 255, 0.2);
+}
+
+body.dark #kb-touchpad-btn_right {
+    border-left: 1.5px solid rgba(255, 255, 255, 0.2);
+}
+
 #kb-touchpad-btn_left.active,
 #kb-touchpad-btn_right.active,
 #kb-touchpad-btn_left:active,
 #kb-touchpad-btn_right:active {
     background-color: rgba(0, 0, 0, 0.1);
+}
+
+body.dark #kb-touchpad-btn_left.active,
+body.dark #kb-touchpad-btn_right.active,
+body.dark #kb-touchpad-btn_left:active,
+body.dark #kb-touchpad-btn_right:active {
+    background-color: rgba(255, 255, 255, 0.15);
 }
 
 /* Edge scroll guide indicator (CSS pseudo-element based: ::before for left, ::after for right) */

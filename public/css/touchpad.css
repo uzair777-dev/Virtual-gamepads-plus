@@ -24,7 +24,7 @@ body {
 }
 
 body.dark {
-    background: #292929 url(../images/noise.png);
+    background-color: #121212;
 }
 
 html {
@@ -78,6 +78,11 @@ html {
     cursor: pointer;
 }
 
+body.dark .action-btn img,
+body.dark #settings-gear img {
+    filter: invert(1);
+}
+
 #touchpad {
     position: absolute;
     left: 0;
@@ -98,8 +103,8 @@ html {
 }
 
 body.dark #touchpad-area {
-    background: radial-gradient(ellipse farthest-corner, rgba(255, 255, 255, 0.10) 0%, rgba(0, 0, 0, 0.01) 100%);
-    border-bottom: 1px solid #242424;
+    background: radial-gradient(ellipse farthest-corner, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%), #1a1a1a;
+    border-bottom: 1.5px solid rgba(255, 255, 255, 0.2);
 }
 
 #touchpad-btn_left,
@@ -126,15 +131,16 @@ body.dark #touchpad-area {
 
 body.dark #touchpad-btn_left,
 body.dark #touchpad-btn_right {
-    border-top: 1px solid #383838;
+    background-color: #222222;
+    border-top: 1.5px solid rgba(255, 255, 255, 0.2);
 }
 
 body.dark #touchpad-btn_left {
-    border-right: 1px solid #242424;
+    border-right: 1.5px solid rgba(255, 255, 255, 0.2);
 }
 
 body.dark #touchpad-btn_right {
-    border-left: 1px solid #383838;
+    border-left: 1.5px solid rgba(255, 255, 255, 0.2);
 }
 
 #touchpad-btn_left.active,

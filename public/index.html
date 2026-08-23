@@ -8,6 +8,12 @@
     <link rel="manifest" href="/images/manifest.json" />
     <title>Virtual Controls</title>
     <link rel="stylesheet" type="text/css" href="/css/style.css" />
+    <script>
+        if (!window.location.search || !window.location.search.includes('analog')) {
+            var query = window.location.search ? (window.location.search + '&analog') : '?analog';
+            window.location.replace(window.location.pathname + query + window.location.hash);
+        }
+    </script>
     <script data-main="js/index" src="/js/lib/require.js"></script>
 </head>
 
